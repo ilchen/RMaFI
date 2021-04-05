@@ -9,7 +9,14 @@ import locale
 from math import sqrt
 #import pandas.io.data as web
 
+
 class Evt:
+    """
+    Represents the dataset for Chapter Market Risk VaR: The Historical Simulation Approach.
+    
+    This class contains solutions for exercises relying on *Extreme Value Theory*. Since these exercises involve
+    solving optimization problems, the class depends on TensorFlow -- the leading machine learning framework.
+    """
     scale_factor = 1e3
 
     def __init__(self, path, today_value, num_iter):
@@ -17,6 +24,7 @@ class Evt:
         data.index = data['Date']
         data = data.drop(['Date'], axis=1)
         data = data.drop(['FTSE-100', 'USD/GBP', 'CAC-40', 'EUR/USD', 'Nikkei', 'YEN/USD'], axis=1)
+        data = data.drop(data.columns[0], axis=1)
         data.columns = ['DJIA', 'FTSE', 'CAC', 'Nikkei']
         self.data = data
         self.data_pct = data.pct_change().dropna()
@@ -38,35 +46,33 @@ class Evt:
         n_u = sorted_scenarios.index.get_loc(next_index)
         n = len(sorted_scenarios)
 
-        # X   = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
-        # X  = tf.placeholder(dtype=tf.float64, shape=[n_u, ])
+        X   = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
         # 'None' because I will change the shape in Exercise 14.10
-        X = tf.placeholder(dtype=tf.float64, shape=[None, ])
+        # X = tf.placeholder(dtype=tf.float64, shape=[None, ])
+        #X = tf.keras.Input(dtype=tf.float64, name='X', shape=[None, ])
 
         # Changing the sign due to tensorflow's optimizers not having a 'maximize' method
-        out = -tf.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.))
-        probability_ln = tf.reduce_sum(out)
+        probability_ln = lambda: tf.reduce_sum(-tf.math.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.)))
 
-        opt = tf.train.AdamOptimizer().minimize(probability_ln)
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
+        learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=.05,
+                                                                       decay_steps=self.num_iter*1000, decay_rate=.96)
+        print("Cost initially: %.7f" % probability_ln())
+        print("Starting values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-            sess.run(probability_ln, feed_dict={X: sorted_scenarios.Loss.iloc[:n_u]})
+        opt = tf.keras.optimizers.Adam(learning_rate)
 
-            # for i in range(num_iter):  sess.run(opt)
-            for i in range(self.num_iter):  sess.run(opt, feed_dict={X: sorted_scenarios.Loss.iloc[:n_u]})
-            print("Cost after running optimizer for %d iterations: %.7f"
-                  % (self.num_iter, -sess.run(probability_ln, feed_dict={X: sorted_scenarios.Loss.iloc[:n_u]})))
-            beta_val = sess.run(beta, feed_dict={X: sorted_scenarios.Loss.iloc[:n_u]})
-            gamma_val = sess.run(gamma, feed_dict={X: sorted_scenarios.Loss.iloc[:n_u]})
+        for _ in range(self.num_iter):  opt.minimize(probability_ln, [beta, gamma])
+        print("Cost after running optimizer for %d iterations: %.7f"
+               % (self.num_iter, probability_ln()))
+        print("New values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-            ex_14_8 = n_u / n * (1. + gamma_val * (threashold - u) / beta_val) ** (-1. / gamma_val)
-            print("Exercise 14.8. The probability the loss will exceed $%d thousand: %.7f" % (threashold, ex_14_8))
+        ex_14_8 = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
+        print("Exercise 14.8. The probability the loss will exceed $%d thousand: %.7f" % (threashold, ex_14_8))
 
-            # Exercise 14.9
-            ex_14_9 = u + beta_val / gamma_val * ((n / n_u * (1. - VaR_conf)) ** -gamma_val - 1)
-            print("Exercise 14.9. One day VaR with a confidence level of %2.f%%: %.7f"
-                  % (VaR_conf * self.scale_factor, ex_14_9))
+        # Exercise 14.9
+        ex_14_9 = u + beta / gamma * ((n / n_u * (1. - VaR_conf)) ** -gamma - 1)
+        print("Exercise 14.9. One day VaR with a confidence level of %2.f%%: %.7f\n"
+              % (VaR_conf * self.scale_factor, ex_14_9))
 
     def exercise_14_10(self, VaR_conf):
         sorted_scenarios = self.scenarios.sort_values(by='Loss', ascending=False)
@@ -81,29 +87,23 @@ class Evt:
         X = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
 
         # Changing the sign due to Tensorflow's optimizers not having a 'maximize' method
-        out = -tf.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.))
-        probability_ln = tf.reduce_sum(out)
+        probability_ln = lambda: tf.reduce_sum(-tf.math.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.)))
+        print("Cost initially: %.7f" % probability_ln())
+        print("Starting values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        opt = tf.train.AdamOptimizer().minimize(probability_ln)
+        opt = tf.keras.optimizers.Adam()
 
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
+        for _ in range(self.num_iter):  opt.minimize(probability_ln, [beta, gamma])
 
-            sess.run(probability_ln)
+        print("Cost after running optimizer for %d iterations: %.7f" % (self.num_iter, probability_ln()))
+        print("New values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-            for i in range(self.num_iter):  sess.run(opt)
-
-            print("Cost after running optimizer for %d iterations: %.7f" % (self.num_iter, -sess.run(probability_ln)))
-            beta_val = sess.run(beta)
-            gamma_val = sess.run(gamma)
-
-            print("New values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta_val, gamma_val))
-
-            # Exercise 14.10
-            ex_14_10 = u + beta_val / gamma_val * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma_val - 1)
-            for i in range(len(VaR_conf)):
-                print("Exercise 14.10. One day VaR with a confidence level of %2.1f%%: %.7f"
-                      % (VaR_conf[i] * 100, ex_14_10[i]))
+        # Exercise 14.10
+        ex_14_10 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        for i in range(len(VaR_conf)):
+            print("Exercise 14.10. One day VaR with a confidence level of %2.1f%%: %.7f"
+                  % (VaR_conf[i] * 100, ex_14_10[i]))
+        print()
 
     def exercise_14_11(self, VaR_conf, threashold = 600, lbd = .94):
         djia_var = self.data_pct.DJIA.var()
@@ -164,54 +164,47 @@ class Evt:
         X = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
 
         # Changing the sign due to Tensorflow's optimizers not having a 'maximize' method
-        out = -tf.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.))
-        probability_ln = tf.reduce_sum(out)
+        probability_ln = lambda: tf.reduce_sum(-tf.math.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.)))
 
-        opt = tf.train.AdamOptimizer().minimize(probability_ln)
+        print("Cost initially: %.7f" % probability_ln())
+        print("Starting values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
+        opt = tf.keras.optimizers.Adam()
 
-            sess.run(probability_ln)
+        num_iter = 2 * self.num_iter
+        step = 100
+        x = np.arange(0, num_iter // step)
+        y = np.zeros((3, num_iter // step))
 
-            num_iter = 2 * self.num_iter
-            step = 100
-            x = np.arange(0, num_iter // step)
-            y = np.zeros((3, num_iter // step))
+        for i in range(num_iter):
+            opt.minimize(probability_ln, [beta, gamma])
+            if i % step == 0:
+                y[0, i // step] = probability_ln()
+                y[1, i // step] = beta
+                y[2, i // step] = gamma
 
-            for i in range(num_iter):
-                sess.run(opt)
-                if i % step == 0:
-                    y[0, i // step] = sess.run(probability_ln)
-                    y[1, i // step] = sess.run(beta)
-                    y[2, i // step] = sess.run(gamma)
+        fig, ax = plt.subplots(2, 2)
+        ax[0, 0].plot(x, y[0], 'g')
+        ax[0, 0].set_ylabel("Cost")
+        ax[0, 1].plot(x, y[1], 'b--')
+        ax[0, 1].set_ylabel("\u03B2")
+        ax[1, 0].plot(x, y[2], 'k.')
+        ax[1, 0].set_ylabel("\u03B3")
 
-            fig, ax = plt.subplots(2, 2)
-            ax[0, 0].plot(x, y[0], 'g')
-            ax[0, 0].set_ylabel("Cost")
-            ax[0, 1].plot(x, y[1], 'b--')
-            ax[0, 1].set_ylabel("\u03B2")
-            ax[1, 0].plot(x, y[2], 'k.')
-            ax[1, 0].set_ylabel("\u03B3")
+        print("Cost after running optimizer for %d iterations: %.7f" % (num_iter, probability_ln()))
+        print("Values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-            print("Cost after running optimizer for %d iterations: %.7f" % (num_iter, -sess.run(probability_ln)))
+        ex_14_11 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        for i in range(len(VaR_conf)):
+            print("Exercise 14.11a. One day VaR with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_14_11[i] * self.scale_factor, grouping=True)))
 
-            beta_val = sess.run(beta)
-            gamma_val = sess.run(gamma)
-
-            print("Values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta_val, gamma_val))
-
-            ex_14_11 = u + beta_val / gamma_val * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma_val - 1)
-            for i in range(len(VaR_conf)):
-                print("Exercise 14.11a. One day VaR with a confidence level of %2.1f%%: %s"
-                      % (VaR_conf[i] * 100, locale.currency(ex_14_11[i] * self.scale_factor, grouping=True)))
-
-            ex_14_11b = n_u / n * (1. + gamma_val * (threashold - u) / beta_val) ** (-1. / gamma_val)
-            print("Exercise 14.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_14_11b))
+        ex_14_11b = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
+        print("Exercise 14.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_14_11b))
 
 if __name__ == "__main__":
     # The first row is removed
-    evt = Evt('/Users/ilchen/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls', 1e4, num_iter=30000)
+    evt = Evt('~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls', 1e4, num_iter=20000)
     locale.setlocale(locale.LC_ALL, '')
     evt.exercise_14_8_9(VaR_conf=.97)
     evt.exercise_14_10(VaR_conf=[.99, .999])

@@ -16,6 +16,7 @@ class ModelBuilding:
         data.index = data['Date']
         data = data.drop(['Date'], axis=1)
         data = data.drop(['FTSE-100', 'USD/GBP', 'CAC-40', 'EUR/USD', 'Nikkei', 'YEN/USD'], axis=1)
+        data = data.drop(data.columns[0], axis=1)
         data.columns = ['DJIA', 'FTSE', 'CAC', 'Nikkei']
         self.data = data
         self.data_pct = data.pct_change().dropna()
