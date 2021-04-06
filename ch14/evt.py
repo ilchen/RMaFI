@@ -54,12 +54,13 @@ class Evt:
         # Changing the sign due to tensorflow's optimizers not having a 'maximize' method
         probability_ln = lambda: tf.reduce_sum(-tf.math.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.)))
 
-        learning_rate = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate=.05,
-                                                                       decay_steps=self.num_iter*1000, decay_rate=.96)
+        learning_rate = tf.keras.optimizers.schedules.ExponentialDecay( # Decaying the learning rate from .1 to .001
+            initial_learning_rate=.1, decay_steps=self.num_iter/100, decay_rate=.955, staircase=True)
+
         print("Cost initially: %.7f" % probability_ln())
         print("Starting values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        opt = tf.keras.optimizers.Adam(learning_rate)
+        opt = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
         for _ in range(self.num_iter):  opt.minimize(probability_ln, [beta, gamma])
         print("Cost after running optimizer for %d iterations: %.7f"
@@ -71,8 +72,8 @@ class Evt:
 
         # Exercise 14.9
         ex_14_9 = u + beta / gamma * ((n / n_u * (1. - VaR_conf)) ** -gamma - 1)
-        print("Exercise 14.9. One day VaR with a confidence level of %2.f%%: %.7f\n"
-              % (VaR_conf * self.scale_factor, ex_14_9))
+        print("Exercise 14.9. One day VaR with a confidence level of %2.f%%: %s\n"
+              % (VaR_conf * 100, locale.currency(ex_14_9 * self.scale_factor, grouping=True)))
 
     def exercise_14_10(self, VaR_conf):
         sorted_scenarios = self.scenarios.sort_values(by='Loss', ascending=False)
@@ -101,8 +102,8 @@ class Evt:
         # Exercise 14.10
         ex_14_10 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
         for i in range(len(VaR_conf)):
-            print("Exercise 14.10. One day VaR with a confidence level of %2.1f%%: %.7f"
-                  % (VaR_conf[i] * 100, ex_14_10[i]))
+            print("Exercise 14.10. One day VaR with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_14_10[i] * self.scale_factor, grouping=True)))
         print()
 
     def exercise_14_11(self, VaR_conf, threashold = 600, lbd = .94):
@@ -163,7 +164,7 @@ class Evt:
 
         X = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
 
-        # Changing the sign due to Tensorflow's optimizers not having a 'maximize' method
+        # Changing the sign due to TensorFlow's optimizers not having a 'maximize' method
         probability_ln = lambda: tf.reduce_sum(-tf.math.log((1. / beta) * tf.pow(1. + gamma * (X - u) / beta, -1. / gamma - 1.)))
 
         print("Cost initially: %.7f" % probability_ln())

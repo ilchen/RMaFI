@@ -114,6 +114,8 @@ if __name__ == "__main__":
     import sys
     import os
 
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # Suppress TensorFlow kernel diagnostics
+
     try:
         # http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI3eHistoricalSimulation.xls
         # The first row is removed
@@ -124,9 +126,10 @@ if __name__ == "__main__":
         ch14.exercise_14_5([.99])
         ch14.exercise_14_6(lbd=.99)
         ch14.exercise_14_7(lbd=.96)
-        from ch14.evt import Evt
+        from evt import Evt
         evt = Evt(hist_simulation_spreadsheet, 1e4, num_iter=30000)
         evt.exercise_14_8_9(VaR_conf=.97)
+
         evt.exercise_14_10(VaR_conf=[.99, .999])
         evt.exercise_14_11(VaR_conf=[.99, .999])
     except (IndexError, ValueError) as ex:
