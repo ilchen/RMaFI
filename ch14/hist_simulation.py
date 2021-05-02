@@ -3,7 +3,6 @@ import numpy as np
 from pandas import Series, DataFrame
 import pandas as pd
 import locale
-import matplotlib.pyplot as plt
 import datetime
 from math import sqrt
 
@@ -31,24 +30,19 @@ class HistSimulation:
         self.weights_equal[:] = [2500, 2500, 2500, 2500]
 
     def exercise_14_4(self, VaR_conf):
-        loss = (self.scenarios * self.weights / self.today).sum(axis=1)
-        #portfolio_value=loss
-        _scenarios = self.scenarios.copy(deep=False)
-        _scenarios['Loss'] = self.today_value - loss
+        loss = self.today_value - (self.scenarios * self.weights / self.today).sum(axis=1)
         # _scenarios.sort_values(by='Loss', ascending=False).iloc[24]
         # _scenarios.sort_values(by='Loss', ascending=False).iloc[14]
         for i in range(len(VaR_conf)):
             print("Exercise 14.4. One day VaR with a confidence level of %2.1f%%: %s"
-                  % (VaR_conf[i] * 100, locale.currency(_scenarios.Loss.quantile(VaR_conf[i]) * self.scale_factor,
+                  % (VaR_conf[i] * 100, locale.currency(loss.quantile(VaR_conf[i]) * self.scale_factor,
                                                         grouping=True)))
 
     def exercise_14_5(self, VaR_conf):
-        loss = (self.scenarios * self.weights_equal / self.today).sum(axis=1)
-        _scenarios = self.scenarios.copy(deep=False)
-        _scenarios['Loss'] = self.today_value - loss
+        loss = self.today_value - (self.scenarios * self.weights_equal / self.today).sum(axis=1)
         for i in range(len(VaR_conf)):
             print("Exercise 14.5. One day VaR with a confidence level of %2.1f%%: %s"
-                % (VaR_conf[i] * 100, locale.currency(_scenarios.Loss.quantile(VaR_conf[i]) * self.scale_factor,
+                % (VaR_conf[i] * 100, locale.currency(loss.quantile(VaR_conf[i]) * self.scale_factor,
                                                       grouping=True)))
         # alternatively we could've just taken the fifth worst loss
         # _scenarios.Loss.sort_values(ascending=False)[4]
