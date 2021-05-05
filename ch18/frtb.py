@@ -32,21 +32,29 @@ class FRTB:
         self.scenarios_40 = self.data_pct[FRTB.columns_40_days_time_horizon].iloc[idx-249:idx+1] * self.today_indices + self.today_indices
 
     def exercise_18_7(self, VaR_conf):
-        loss = (self.scenarios * self.today_values / self.today_indices).sum(axis=1)
-        loss_20 = (self.scenarios_20 * self.today_values / self.today_indices).sum(axis=1)
-        loss_40 = (self.scenarios_40 * self.today_values / self.today_indices).sum(axis=1)
+        portfolio_values_in_scenarios = (self.scenarios * self.today_values / self.today_indices).sum(axis=1)
+        portfolio_values_in_scenarios_20 = (self.scenarios_20 * self.today_values / self.today_indices).sum(axis=1)
+        portfolio_values_in_scenarios_40 = (self.scenarios_40 * self.today_values / self.today_indices).sum(axis=1)
 
-        loss = self.today_values.sum() - loss
+        loss = self.today_values.sum() - portfolio_values_in_scenarios
         quantile = loss.quantile(VaR_conf)
         ES1 = loss[loss > quantile].mean()
+        # Alternatively, use the mean of the highest 6 losses to get the same results as in John C. Hull's answers
+        # when VaR_conf == .975
+        # loss = loss.sort_values(ascending=False)
+        # ES1 = loss.iloc[:6].mean()
 
-        loss_20 = self.today_values[FRTB.columns_20_days_time_horizon].sum() - loss_20
+        loss_20 = self.today_values[FRTB.columns_20_days_time_horizon].sum() - portfolio_values_in_scenarios_20
         quantile_20 = loss_20.quantile(VaR_conf)
         ES2 = loss_20[loss_20 > quantile_20].mean()
+        # loss_20 = loss_20.sort_values(ascending=False)
+        # ES2 = loss_20.iloc[:6].mean()
 
-        loss_40 = self.today_values[FRTB.columns_40_days_time_horizon].sum() - loss_40
+        loss_40 = self.today_values[FRTB.columns_40_days_time_horizon].sum() - portfolio_values_in_scenarios_40
         quantile_40 = loss_40.quantile(VaR_conf)
         ES3 = loss_40[loss_40 > quantile_40].mean()
+        # loss_40 = loss_40.sort_values(ascending=False)
+        # ES3 = loss_40.iloc[:6].mean()
 
         ES = sqrt(ES1**2 + ES2**2 + 2 * ES3**2)
 
@@ -61,8 +69,6 @@ if __name__ == "__main__":
     import sys
     import os
     from datetime import date
-
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # Suppress TensorFlow kernel diagnostics
 
     try:
         # http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI3eHistoricalSimulation.xls

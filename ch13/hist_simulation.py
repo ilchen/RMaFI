@@ -29,25 +29,32 @@ class HistSimulation:
         self.weights_equal = self.weights.copy()
         self.weights_equal[:] = [2500, 2500, 2500, 2500]
 
-    def exercise_14_4(self, VaR_conf):
+    def exercise_13_4(self, VaR_conf):
         loss = self.today_value - (self.scenarios * self.weights / self.today).sum(axis=1)
         # _scenarios.sort_values(by='Loss', ascending=False).iloc[24]
         # _scenarios.sort_values(by='Loss', ascending=False).iloc[14]
-        for i in range(len(VaR_conf)):
-            print("Exercise 14.4. One day VaR with a confidence level of %2.1f%%: %s"
-                  % (VaR_conf[i] * 100, locale.currency(loss.quantile(VaR_conf[i]) * self.scale_factor,
-                                                        grouping=True)))
 
-    def exercise_14_5(self, VaR_conf):
+        for i in range(len(VaR_conf)):
+            var = loss.quantile(VaR_conf[i])
+            es = loss[loss > var].mean()
+            print("Exercise 13.4. One day VaR with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(var * self.scale_factor, grouping=True)))
+            print("               One day ES with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(es * self.scale_factor, grouping=True)))
+
+    def exercise_13_5(self, VaR_conf):
         loss = self.today_value - (self.scenarios * self.weights_equal / self.today).sum(axis=1)
         for i in range(len(VaR_conf)):
-            print("Exercise 14.5. One day VaR with a confidence level of %2.1f%%: %s"
-                % (VaR_conf[i] * 100, locale.currency(loss.quantile(VaR_conf[i]) * self.scale_factor,
-                                                      grouping=True)))
+            var = loss.quantile(VaR_conf[i])
+            es = loss[loss > var].mean()
+            print("Exercise 13.5. One day VaR with a confidence level of %2.1f%%: %s"
+                % (VaR_conf[i] * 100, locale.currency(var * self.scale_factor, grouping=True)))
+            print("Exercise 13.5. One day ES with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(es * self.scale_factor, grouping=True)))
         # alternatively we could've just taken the fifth worst loss
-        # _scenarios.Loss.sort_values(ascending=False)[4]
+        # loss.sort_values(ascending=False)[4]
 
-    def exercise_14_6(self, lbd):
+    def exercise_13_6(self, lbd):
         lbd_to_500 = 1 - pow(lbd, 500)
         _scenarios = self.scenarios.copy(deep=False)
         loss = (self.scenarios * self.weights / self.today).sum(axis=1)
@@ -56,10 +63,10 @@ class HistSimulation:
         _scenarios.Weight = _scenarios.Weight.map(lambda i: pow(lbd, 500 - i) * (1 - lbd) / lbd_to_500)
         _scenarios = _scenarios.sort_values(by='Loss', ascending=False)
         _scenarios['Cum_Sum'] = _scenarios.Weight.cumsum()
-        print("Exercise 14.6. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
+        print("Exercise 13.6. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
               % (lbd, locale.currency(_scenarios[_scenarios.Cum_Sum > .01].Loss[0] * self.scale_factor, grouping=True)))
 
-    def exercise_14_7(self, lbd):
+    def exercise_13_7(self, lbd):
         djia_var = self.data_pct.DJIA.var()
         ftse_var = self.data_pct.FTSE.var()
         cac_var  = self.data_pct.CAC.var()
@@ -101,7 +108,7 @@ class HistSimulation:
         _scenarios = _data_pct2 * self.today + self.today
         loss = (_scenarios * self.weights / self.today).sum(axis=1)
         _scenarios['Loss'] = self.today_value - loss
-        print("Exercise 14.7. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
+        print("Exercise 13.7. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
               % (lbd, locale.currency(_scenarios.Loss.quantile(.99) * self.scale_factor, grouping=True)))
 
 if __name__ == "__main__":
@@ -114,18 +121,18 @@ if __name__ == "__main__":
         # http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI3eHistoricalSimulation.xls
         # The first row is removed
         hist_simulation_spreadsheet = sys.argv[1]
-        ch14 = HistSimulation(hist_simulation_spreadsheet, 1e4)
+        ch13 = HistSimulation(hist_simulation_spreadsheet, 1e4)
         locale.setlocale(locale.LC_ALL, '')
-        ch14.exercise_14_4([.95, .97])
-        ch14.exercise_14_5([.99])
-        ch14.exercise_14_6(lbd=.99)
-        ch14.exercise_14_7(lbd=.96)
+        ch13.exercise_13_4([.95, .97])
+        ch13.exercise_13_5([.99])
+        ch13.exercise_13_6(lbd=.99)
+        ch13.exercise_13_7(lbd=.96)
         from evt import Evt
         evt = Evt(hist_simulation_spreadsheet, 1e4, num_iter=30000)
-        evt.exercise_14_8_9(VaR_conf=.97)
+        evt.exercise_13_8_9(VaR_conf=.97)
 
-        evt.exercise_14_10(VaR_conf=[.99, .999])
-        evt.exercise_14_11(VaR_conf=[.99, .999])
+        evt.exercise_13_10(VaR_conf=[.99, .999])
+        evt.exercise_13_11(VaR_conf=[.99, .999])
     except (IndexError, ValueError) as ex:
         print(
         '''Invalid number of arguments or incorrect values. Usage:

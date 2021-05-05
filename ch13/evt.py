@@ -36,7 +36,7 @@ class Evt:
         self.scenarios['Loss'] = today_value - loss
         self.num_iter = num_iter
 
-    def exercise_14_8_9(self, threashold = 400, VaR_conf=.97):
+    def exercise_13_8_9(self, threashold = 400, VaR_conf=.97):
         sorted_scenarios = self.scenarios.sort_values(by='Loss', ascending=False)
 
         beta = tf.Variable(40, dtype=tf.float64)
@@ -47,7 +47,7 @@ class Evt:
         n = len(sorted_scenarios)
 
         X   = tf.constant(sorted_scenarios.Loss.iloc[:n_u])
-        # 'None' because I will change the shape in Exercise 14.10
+        # 'None' because I will change the shape in Exercise 13.10
         # X = tf.placeholder(dtype=tf.float64, shape=[None, ])
         #X = tf.keras.Input(dtype=tf.float64, name='X', shape=[None, ])
 
@@ -67,15 +67,15 @@ class Evt:
                % (self.num_iter, probability_ln()))
         print("New values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        ex_14_8 = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
-        print("Exercise 14.8. The probability the loss will exceed $%d thousand: %.7f" % (threashold, ex_14_8))
+        ex_13_8 = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
+        print("Exercise 13.8. The probability the loss will exceed $%d thousand: %.7f" % (threashold, ex_13_8))
 
-        # Exercise 14.9
-        ex_14_9 = u + beta / gamma * ((n / n_u * (1. - VaR_conf)) ** -gamma - 1)
-        print("Exercise 14.9. One day VaR with a confidence level of %2.f%%: %s\n"
-              % (VaR_conf * 100, locale.currency(ex_14_9 * self.scale_factor, grouping=True)))
+        # Exercise 13.9
+        ex_13_9 = u + beta / gamma * ((n / n_u * (1. - VaR_conf)) ** -gamma - 1)
+        print("Exercise 13.9. One day VaR with a confidence level of %2.f%%: %s\n"
+              % (VaR_conf * 100, locale.currency(ex_13_9 * self.scale_factor, grouping=True)))
 
-    def exercise_14_10(self, VaR_conf):
+    def exercise_13_10(self, VaR_conf):
         sorted_scenarios = self.scenarios.sort_values(by='Loss', ascending=False)
 
         beta = tf.Variable(40, dtype=tf.float64)
@@ -99,14 +99,14 @@ class Evt:
         print("Cost after running optimizer for %d iterations: %.7f" % (self.num_iter, probability_ln()))
         print("New values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        # Exercise 14.10
-        ex_14_10 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        # Exercise 13.10
+        ex_13_10 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
         for i in range(len(VaR_conf)):
-            print("Exercise 14.10. One day VaR with a confidence level of %2.1f%%: %s"
-                  % (VaR_conf[i] * 100, locale.currency(ex_14_10[i] * self.scale_factor, grouping=True)))
+            print("Exercise 13.10. One day VaR with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_13_10[i] * self.scale_factor, grouping=True)))
         print()
 
-    def exercise_14_11(self, VaR_conf, threashold = 600, lbd = .94):
+    def exercise_13_11(self, VaR_conf, threashold = 600, lbd = .94):
         djia_var = self.data_pct.DJIA.var()
         ftse_var = self.data_pct.FTSE.var()
         cac_var = self.data_pct.CAC.var()
@@ -195,19 +195,19 @@ class Evt:
         print("Cost after running optimizer for %d iterations: %.7f" % (num_iter, probability_ln()))
         print("Values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
-        ex_14_11 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        ex_13_11 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
         for i in range(len(VaR_conf)):
-            print("Exercise 14.11a. One day VaR with a confidence level of %2.1f%%: %s"
-                  % (VaR_conf[i] * 100, locale.currency(ex_14_11[i] * self.scale_factor, grouping=True)))
+            print("Exercise 13.11a. One day VaR with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_13_11[i] * self.scale_factor, grouping=True)))
 
-        ex_14_11b = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
-        print("Exercise 14.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_14_11b))
+        ex_13_11b = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
+        print("Exercise 13.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_13_11b))
 
 if __name__ == "__main__":
     # The first row is removed
     evt = Evt('~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls', 1e4, num_iter=20000)
     locale.setlocale(locale.LC_ALL, '')
-    evt.exercise_14_8_9(VaR_conf=.97)
-    evt.exercise_14_10(VaR_conf=[.99, .999])
-    evt.exercise_14_11(VaR_conf=[.99, .999])
+    evt.exercise_13_8_9(VaR_conf=.97)
+    evt.exercise_13_10(VaR_conf=[.99, .999])
+    evt.exercise_13_11(VaR_conf=[.99, .999])
 
