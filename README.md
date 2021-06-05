@@ -25,15 +25,15 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
 ## How to run
 * Chapter 18: Fundamental Review of the Trading Book:
 ```commandline
-python3 ch18/frtb.py ~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls
+python3 ch18/frtb.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
 ```
 
 * Chapter 14: Market Risk VaR: The Model Building Approach
 ```commandline
-python3 ch14/model_build.py ~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls
+python3 ch14/model_build.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
 ```
 
 * Chapter 13: Market Risk VaR: The Historical Simulation Approach
 ```commandline
-python3 ch13/hist_simulation.py ~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls
+python3 ch13/hist_simulation.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
 ```

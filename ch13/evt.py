@@ -101,9 +101,12 @@ class Evt:
 
         # Exercise 13.10
         ex_13_10 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        ex_13_10_es = (ex_13_10 + beta - gamma * u) / (1. - gamma)
         for i in range(len(VaR_conf)):
             print("Exercise 13.10. One day VaR with a confidence level of %2.1f%%: %s"
                   % (VaR_conf[i] * 100, locale.currency(ex_13_10[i] * self.scale_factor, grouping=True)))
+            print("Exercise 13.10. One day ES with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_13_10_es[i] * self.scale_factor, grouping=True)))
         print()
 
     def exercise_13_11(self, VaR_conf, threashold = 600, lbd = .94):
@@ -191,21 +194,25 @@ class Evt:
         ax[0, 1].set_ylabel("\u03B2")
         ax[1, 0].plot(x, y[2], 'k.')
         ax[1, 0].set_ylabel("\u03B3")
+        fig.delaxes(ax[1, 1])
 
         print("Cost after running optimizer for %d iterations: %.7f" % (num_iter, probability_ln()))
         print("Values: \u03B2 = %.7f, \u03B3 = %.7f" % (beta, gamma))
 
         ex_13_11 = u + beta / gamma * ((n / n_u * (1. - np.array(VaR_conf))) ** -gamma - 1)
+        ex_13_11_es = (ex_13_11 + beta - gamma * u) / (1. - gamma)
         for i in range(len(VaR_conf)):
             print("Exercise 13.11a. One day VaR with a confidence level of %2.1f%%: %s"
                   % (VaR_conf[i] * 100, locale.currency(ex_13_11[i] * self.scale_factor, grouping=True)))
+            print("Exercise 13.11a. One day ES with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ex_13_11_es[i] * self.scale_factor, grouping=True)))
 
         ex_13_11b = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
         print("Exercise 13.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_13_11b))
 
 if __name__ == "__main__":
     # The first row is removed
-    evt = Evt('~/Downloads/VaRExampleRMFI3eHistoricalSimulation.xls', 1e4, num_iter=20000)
+    evt = Evt('../ext/VaRExampleRMFI3eHistoricalSimulation.xls', 1e4, num_iter=20000)
     locale.setlocale(locale.LC_ALL, '')
     evt.exercise_13_8_9(VaR_conf=.97)
     evt.exercise_13_10(VaR_conf=[.99, .999])

@@ -55,16 +55,27 @@ class HistSimulation:
         # loss.sort_values(ascending=False)[4]
 
     def exercise_13_6(self, lbd):
+        VaR_conf = .99
+        conf = 1 - VaR_conf
         lbd_to_500 = 1 - pow(lbd, 500)
         _scenarios = self.scenarios.copy(deep=False)
-        loss = (self.scenarios * self.weights / self.today).sum(axis=1)
-        _scenarios['Loss'] = self.today_value - loss
+        _scenarios['Loss'] = self.today_value - (self.scenarios * self.weights / self.today).sum(axis=1)
         _scenarios['Weight'] = range(1, 501)
         _scenarios.Weight = _scenarios.Weight.map(lambda i: pow(lbd, 500 - i) * (1 - lbd) / lbd_to_500)
         _scenarios = _scenarios.sort_values(by='Loss', ascending=False)
         _scenarios['Cum_Sum'] = _scenarios.Weight.cumsum()
-        print("Exercise 13.6. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
-              % (lbd, locale.currency(_scenarios[_scenarios.Cum_Sum > .01].Loss[0] * self.scale_factor, grouping=True)))
+
+        # Calculating VaR
+        var = _scenarios[_scenarios.Cum_Sum > conf].Loss[0]
+
+        # Only interested in the range of losses whose probability is less than 1%
+        _scenarios = _scenarios[_scenarios.Cum_Sum <= conf]
+        weight = conf - _scenarios.Weight.sum()
+        es = ((_scenarios.Loss * _scenarios.Weight).sum() + var * weight) / conf
+        print("Exercise 13.6. One day VaR with a confidence level of %2.1f%% and \u03BB=%1.2f: %s"
+              % (VaR_conf * 100, lbd, locale.currency(var * self.scale_factor, grouping=True)))
+        print("Exercise 13.6. One day ES with a confidence level of %2.1f%% and \u03BB=%1.2f: %s"
+              % (VaR_conf * 100, lbd, locale.currency(es * self.scale_factor, grouping=True)))
 
     def exercise_13_7(self, lbd):
         djia_var = self.data_pct.DJIA.var()
@@ -104,12 +115,17 @@ class HistSimulation:
             _data_pct2.Nikkei[i - 1] = (self.data.Nikkei[i - 1] + (self.data.Nikkei[i] - self.data.Nikkei[i - 1]) * sqrt(nikkei_var) / sqrt(
                 _data_pct.Nikkei_Var[i - 1])) / self.data.Nikkei[i - 1]
         _data_pct2 -= 1.
+        _data_pct2 = _data_pct2.dropna()
 
         _scenarios = _data_pct2 * self.today + self.today
         loss = (_scenarios * self.weights / self.today).sum(axis=1)
         _scenarios['Loss'] = self.today_value - loss
+        var = _scenarios.Loss.quantile(.99)
+        es = _scenarios.Loss[_scenarios.Loss > var].mean()
         print("Exercise 13.7. One day VaR with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
-              % (lbd, locale.currency(_scenarios.Loss.quantile(.99) * self.scale_factor, grouping=True)))
+              % (lbd, locale.currency(var * self.scale_factor, grouping=True)))
+        print("Exercise 13.7. One day ES with a confidence level of 99.0%% and \u03BB=%1.2f: %s"
+              % (lbd, locale.currency(es * self.scale_factor, grouping=True)))
 
 if __name__ == "__main__":
     import sys
