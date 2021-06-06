@@ -23,17 +23,25 @@ I used `VaRExampleRMFI3eHistoricalSimulation.xls` for all these Chapters. Please
 Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.xls](http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI4eModelBuilding.xls). 
 
 ## How to run
-* Chapter 18: Fundamental Review of the Trading Book:
-```commandline
-python3 ch18/frtb.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
-```
+* **Chapter 13**: Market Risk VaR: The Historical Simulation Approach
+   ```commandline
+   python3 ch13/hist_simulation.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
+   ```
+   Or, much better, using Jupiter. For historical simulation exercises that don't utilize the _Extreme Value Theory_:
+   ```commandline
+   jupyter notebook ch13.ipynb
+   ```
+   For exercises that make use of the _Extreme Value Theory_:
+   ```commandline
+   jupyter notebook ch13_evt.ipynb
+   ```
 
-* Chapter 14: Market Risk VaR: The Model Building Approach
-```commandline
-python3 ch14/model_build.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
-```
+* **Chapter 14**: Market Risk VaR: The Model Building Approach
+   ```commandline
+   python3 ch14/model_build.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
+   ```
 
-* Chapter 13: Market Risk VaR: The Historical Simulation Approach
-```commandline
-python3 ch13/hist_simulation.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
-```
+* **Chapter 18**: Fundamental Review of the Trading Book:
+   ```commandline
+   python3 ch18/frtb.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
+   ```
