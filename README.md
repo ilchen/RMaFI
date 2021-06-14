@@ -16,7 +16,7 @@ to solve optimization problems, TensorFlow 2.x will be needed:
 python3 -m pip install -r requirements_extra.txt
 ```
 ## How to install using virtualenv
-If you want to avoid mixing up packages your  global python installation, you can prepare the environment as follows:
+If you want to avoid mixing up packages in your global python installation, you can prepare the environment as follows:
 ```commandline
 python3 -m venv venv
 source venv/bin/activate
