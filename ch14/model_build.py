@@ -1,12 +1,9 @@
 # coding: utf-8
-import numpy as np
-from pandas import Series, DataFrame
+from pandas import Series
 import pandas as pd
 from scipy.stats import norm
 import locale
-#import matplotlib.pyplot as plt
-import datetime
-from math import sqrt
+import math
 
 class ModelBuilding:
     scale_factor = 1e3
@@ -31,19 +28,27 @@ class ModelBuilding:
         # cov_matrix = DataFrame(np.cov(data_pct, bias=True, rowvar=False),
         #                        columns=data_pct.columns, index=data_pct.columns)
         cov_matrix = self.data_pct.cov() * (n - 1) / n
-        p_sd = sqrt(self.weights_equal.dot(cov_matrix).dot(self.weights_equal))
+        p_sd = math.sqrt(self.weights_equal.dot(cov_matrix).dot(self.weights_equal))
         for i in range(len(VaR_conf)):
             print("Exercise 14.14a. One day VaR with a confidence level of %2.1f%%: %s"
                 % (VaR_conf[i] * 100, locale.currency(norm.ppf(.99) * p_sd * self.scale_factor, grouping=True)))
+            print("Exercise 14.14a. One day ES with a confidence level of %2.1f%%: %s"
+                  % (VaR_conf[i] * 100, locale.currency(ModelBuilding.es(p_sd, VaR_conf[i]) * self.scale_factor, grouping=True)))
 
     def exercise_14_14b(self, VaR_conf, weights, lbd=.94):
         cov_matrix = self.data_pct.ewm(alpha = 1. - lbd).cov(bias=True)
         last_idx = cov_matrix.index.levels[0][-1]
         cov_matrix = cov_matrix.loc[last_idx]
-        p_sd = sqrt(weights.dot(cov_matrix).dot(weights))
+        p_sd = math.sqrt(weights.dot(cov_matrix).dot(weights))
         for i in range(len(VaR_conf)):
             print("Exercise 14.14b. One day VaR with a confidence level of %2.1f%% and \u03BB=%1.2f: %s"
                 % (VaR_conf[i] * 100, lbd, locale.currency(norm.ppf(.99) * p_sd * self.scale_factor, grouping=True)))
+            print("Exercise 14.14b. One day ES with a confidence level of %2.1f%% and \u03BB=%1.2f: %s"
+                  % (VaR_conf[i] * 100, lbd, locale.currency(ModelBuilding.es(p_sd, VaR_conf[i]) * self.scale_factor, grouping=True)))
+
+    @staticmethod
+    def es(sd, confidence=.99):
+        return math.pow(math.e, -(norm.ppf(confidence)**2/2)) * sd / (math.sqrt(2*math.pi) * (1 - confidence))
 
 if __name__ == "__main__":
     import sys

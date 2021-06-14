@@ -178,11 +178,13 @@ class HistSimulation:
 
         # Visualizing losses
         x = np.arange(len(loss))
-        fig = plt.figure()
+        fig = plt.figure(figsize=(20, 10))
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(x, loss.sort_values(ascending=False), label="Losses", linewidth=1, color='b')
         ax.plot(x, adjusted_loss, label="Adjusted losses", linewidth=2, color='g')
         ax.legend(loc='best')
+        ax.grid(True)
+        ax.set_xticks(np.arange(0, len(loss_variance)+1, 20))
         ax.set_title('Sorted portfolio losses and adjusted losses with volatility scaling for the portfolio')
         ax.set_ylabel('Portfolio losses in $M')
         ax.set_xlabel('Sorted scenarios')

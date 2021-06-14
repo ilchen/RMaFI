@@ -15,6 +15,15 @@ to solve optimization problems, TensorFlow 2.x will be needed:
 ```commandline
 python3 -m pip install -r requirements_extra.txt
 ```
+## How to install using virtualenv
+If you want to avoid mixing up packages your  global python installation, you can prepare the environment as follows:
+```commandline
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install -r requirements.txt
+python3 -m pip install -r requirements_extra.txt
+python3 -m pip install jupyter
+```
 
 ## Data for Chapters 13, 14, and 18
 The spreadsheet I used for exercises in these chapters can be downloaded from [this page](http://www-2.rotman.utoronto.ca/~hull/VaRExample/index.html).
@@ -40,7 +49,10 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    ```commandline
    python3 ch14/model_build.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
    ```
-
+   Or, much better, using Jupiter.
+   ```commandline
+   jupyter notebook ch14.ipynb
+   ```
 * **Chapter 18**: Fundamental Review of the Trading Book:
    ```commandline
    python3 ch18/frtb.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
