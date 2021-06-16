@@ -109,7 +109,7 @@ class Evt:
                   % (VaR_conf[i] * 100, locale.currency(ex_13_10_es[i] * self.scale_factor, grouping=True)))
         print()
 
-    def exercise_13_11(self, VaR_conf, threashold = 600, lbd = .94):
+    def exercise_13_11(self, VaR_conf, threshold = 600, lbd = .94):
         djia_var = self.data_pct.DJIA.var()
         ftse_var = self.data_pct.FTSE.var()
         cac_var = self.data_pct.CAC.var()
@@ -187,13 +187,19 @@ class Evt:
                 y[1, i // step] = beta
                 y[2, i // step] = gamma
 
-        fig, ax = plt.subplots(2, 2)
+        fig, ax = plt.subplots(2, 2, figsize=(18, 10))
         ax[0, 0].plot(x, y[0], 'g')
         ax[0, 0].set_ylabel("Cost")
+        ax[0, 0].set_xlabel('Iteration * %u' % step)
+        ax[0, 0].grid()
         ax[0, 1].plot(x, y[1], 'b--')
         ax[0, 1].set_ylabel("\u03B2")
+        ax[0, 1].set_xlabel('Iteration * %u' % step)
+        ax[0, 1].grid()
         ax[1, 0].plot(x, y[2], 'k.')
         ax[1, 0].set_ylabel("\u03B3")
+        ax[1, 0].set_xlabel('Iteration * %u' % step)
+        ax[1, 0].grid()
         fig.delaxes(ax[1, 1])
 
         print("Cost after running optimizer for %d iterations: %.7f" % (num_iter, probability_ln()))
@@ -207,8 +213,8 @@ class Evt:
             print("Exercise 13.11a. One day ES with a confidence level of %2.1f%%: %s"
                   % (VaR_conf[i] * 100, locale.currency(ex_13_11_es[i] * self.scale_factor, grouping=True)))
 
-        ex_13_11b = n_u / n * (1. + gamma * (threashold - u) / beta) ** (-1. / gamma)
-        print("Exercise 13.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threashold, ex_13_11b))
+        ex_13_11b = n_u / n * (1. + gamma * (threshold - u) / beta) ** (-1. / gamma)
+        print("Exercise 13.11b. The probability the loss will exceed $%d thousand: %.7f\n" % (threshold, ex_13_11b))
 
 if __name__ == "__main__":
     # The first row is removed
