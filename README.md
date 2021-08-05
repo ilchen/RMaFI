@@ -27,7 +27,7 @@ python3 -m pip install jupyter
 
 ## Data for Chapters 13, 14, and 18
 The spreadsheet I used for exercises in these chapters can be downloaded from [this page](http://www-2.rotman.utoronto.ca/~hull/VaRExample/index.html).
-I used `VaRExampleRMFI3eHistoricalSimulation.xls` for all these Chapters. Please remove the first row before feeding it to the code.
+I used `VaRExampleRMFI3eHistoricalSimulation.xls` for all these Chapters. Please remove the first row before feeding it to the code (for the spreadsheet in this repository I already did it).
 
 Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.xls](http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI4eModelBuilding.xls). 
 
