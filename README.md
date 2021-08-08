@@ -32,6 +32,12 @@ I used `VaRExampleRMFI3eHistoricalSimulation.xls` for all these Chapters. Please
 Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.xls](http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI4eModelBuilding.xls). 
 
 ## How to run
+* **Chapter 11**: Correlations and Copulas
+   These exercises are fairly simple, so I limited this to a Jupiter notebook:
+   ```commandline
+   jupyter notebook ch11.ipynb
+   ```
+  
 * **Chapter 13**: Market Risk VaR: The Historical Simulation Approach
    ```commandline
    python3 ch13/hist_simulation.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
