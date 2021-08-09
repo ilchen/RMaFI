@@ -2,7 +2,7 @@
 Solutions for exercises from John C. Hull's [Risk Management and Financial Institutions](http://www-2.rotman.utoronto.ca/~hull/riskman/index.html)
 using Python and [Pandas](https://pandas.pydata.org).
 
-So far I tackled Chapters 13 _Market Risk VaR: The Historical Simulation Approach_, 14 _Market Risk VaR: The Model Building Approach_,
+So far I tackled Chapters 11 _Correlations and Copulas_, 13 _Market Risk VaR: The Historical Simulation Approach_, 14 _Market Risk VaR: The Model Building Approach_,
 and 18 _Fundamental Review of the Trading Book_.
 
 ## Requirements
