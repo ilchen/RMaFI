@@ -1,1 +1,2 @@
 tensorflow>=2.5.0rc3
+tensorflow-probability>=0.12.0

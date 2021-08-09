@@ -10,8 +10,8 @@ For the majority of problems the following will suffice:
 ```commandline
 python3 -m pip install -r requirements.txt
 ```
-For a few problems relying on the Extreme Value Theory in Chapter 13 _The Historical Simulation Approach_, where we need
-to solve optimization problems, TensorFlow 2.x will be needed:
+For one problem in Chapter 11 _Copulas and Correlations_ and a few problems relying on the Extreme Value Theory in
+Chapter 13 _The Historical Simulation Approach_, where we need to solve optimization problems, TensorFlow 2.x will be needed:
 ```commandline
 python3 -m pip install -r requirements_extra.txt
 ```
@@ -37,6 +37,12 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    ```commandline
    jupyter notebook ch11.ipynb
    ```
+  You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
+  1. Go to Google Colaboratory in your browser
+  2. In the modal window that appears select GitHub
+  3. Enter the URL of this repository's notebook: https://github.com/ilchen/RMaFI/blob/master/ch11.ipynb
+  4. Click the search icon
+  5. Enjoy
   
 * **Chapter 13**: Market Risk VaR: The Historical Simulation Approach
    ```commandline
