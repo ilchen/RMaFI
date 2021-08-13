@@ -33,17 +33,20 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
 
 ## How to run
 * **Chapter 11**: Correlations and Copulas
-   These exercises are fairly simple, so I limited this to a Jupiter notebook:
    ```commandline
    jupyter notebook ch11.ipynb
    ```
-  You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
-  1. Go to Google Colaboratory in your browser
-  2. In the modal window that appears select GitHub
-  3. Enter the URL of this repository's notebook: https://github.com/ilchen/RMaFI/blob/master/ch11.ipynb
-  4. Click the search icon
-  5. Enjoy
-  
+   You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
+   1. Go to Google Colaboratory in your browser
+   2. In the modal window that appears select GitHub
+   3. Enter the URL of this repository's notebook: https://github.com/ilchen/RMaFI/blob/master/ch11.ipynb
+   4. Click the search icon
+   5. Enjoy
+
+   I make heavy use of the [SciPy](https://docs.scipy.org/doc/scipy/reference/index.html) and [TensorFlow 2](https://www.tensorflow.org/api_docs/python/tf) libraries in these exercises.
+   as they draw heavily on probability theory and solving optimization problems. These exercises are fairly simple from software design point of view, so I limited the implementation to a Jupiter notebook:
+
+
 * **Chapter 13**: Market Risk VaR: The Historical Simulation Approach
    ```commandline
    python3 ch13/hist_simulation.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
