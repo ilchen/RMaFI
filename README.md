@@ -3,7 +3,7 @@ Solutions for exercises from John C. Hull's [Risk Management and Financial Insti
 using Python and [Pandas](https://pandas.pydata.org).
 
 So far I tackled Chapters 11 _Correlations and Copulas_, 13 _Market Risk VaR: The Historical Simulation Approach_, 14 _Market Risk VaR: The Model Building Approach_,
-and 18 _Fundamental Review of the Trading Book_.
+18 _Fundamental Review of the Trading Book_, and 19 _Estimating Default Probabilities_.
 
 ## Requirements
 For the majority of problems the following will suffice:
@@ -72,3 +72,13 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    ```commandline
    python3 ch18/frtb.py ./ext/VaRExampleRMFI3eHistoricalSimulation.xls
    ```
+* **Chapter 19**: Estimating Default Probabilities
+   ```commandline
+   jupyter notebook ch19.ipynb
+   ```
+   You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
+   1. Go to Google Colaboratory in your browser
+   2. In the modal window that appears select GitHub
+   3. Enter the URL of this repository's notebook: https://github.com/ilchen/RMaFI/blob/master/ch19.ipynb
+   4. Click the search icon
+   5. Enjoy
