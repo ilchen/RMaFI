@@ -87,7 +87,7 @@ class GARCHParameterEstimator(ParameterEstimator):
         if res.success:
             ω, α, β = res.x / self.GARCH_PARAM_MULTIPLIERS
             # print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f' % (ω, α, β))
-            # print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
+            print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
             self.omega = ω
             self.alpha = α
             self.beta = β
@@ -125,7 +125,7 @@ class EWMAParameterEstimator(ParameterEstimator):
 
         if res.success:
             # print('Optimal value for λ: %.5f' % res.x)
-            # print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
+            print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
             self.lamda = res.x
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
@@ -135,17 +135,12 @@ if __name__ == "__main__":
     import os
 
     try:
-        # http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI3eHistoricalSimulation.xls
-        # The first row is removed.
-        # The following code replicates all the calculations that are carried out in
-        # http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI3eModelBuilding.xls
-        #hist_simulation_spreadsheet = sys.argv[1]
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
         data = web.get_data_yahoo('EURUSD=X', start, end)
         asset_prices_series = data['Adj Close']
-        ch14_ewma = EWMAParameterEstimator(asset_prices_series)
-        ch14_garch = GARCHParameterEstimator(asset_prices_series)
+        ch10_ewma = EWMAParameterEstimator(asset_prices_series)
+        ch10_garch = GARCHParameterEstimator(asset_prices_series)
 
     except (IndexError, ValueError) as ex:
         print(

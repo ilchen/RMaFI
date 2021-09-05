@@ -2,7 +2,7 @@
 Solutions for exercises from John C. Hull's [Risk Management and Financial Institutions](http://www-2.rotman.utoronto.ca/~hull/riskman/index.html)
 using Python and [Pandas](https://pandas.pydata.org).
 
-So far I tackled Chapters 11 _Correlations and Copulas_, 13 _Market Risk VaR: The Historical Simulation Approach_, 14 _Market Risk VaR: The Model Building Approach_,
+So far I tackled Chapters 10 _Volatility_, 11 _Correlations and Copulas_, 13 _Market Risk VaR: The Historical Simulation Approach_, 14 _Market Risk VaR: The Model Building Approach_,
 18 _Fundamental Review of the Trading Book_, and 19 _Estimating Default Probabilities_.
 
 ## Requirements
@@ -32,6 +32,13 @@ I used `VaRExampleRMFI3eHistoricalSimulation.xls` for all these Chapters. Please
 Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.xls](http://www-2.rotman.utoronto.ca/~hull/VaRExample/VaRExampleRMFI4eModelBuilding.xls). 
 
 ## How to run
+* **Chapter 10**: Volatility
+   Using Jupiter.
+   ```commandline
+   jupyter notebook ch10.ipynb
+   ```
+   A full run of the notebook can be seen [here](https://github.com/ilchen/RMaFI/blob/master/ch10.ipynb).  
+
 * **Chapter 11**: Correlations and Copulas
    ```commandline
    jupyter notebook ch11.ipynb
