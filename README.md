@@ -36,6 +36,8 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    ```commandline
    jupyter notebook ch11.ipynb
    ```
+   A full run of the notebook can be seen [here](https://github.com/ilchen/RMaFI/blob/master/ch11.ipynb).   
+
    You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
    1. Go to [Google Colaboratory](https://colab.research.google.com/notebooks/intro.ipynb#recent=true) in your browser
    2. In the modal window that appears select `GitHub`
@@ -76,6 +78,8 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    ```commandline
    jupyter notebook ch19.ipynb
    ```
+   A full run of the notebook can be seen [here](https://github.com/ilchen/RMaFI/blob/master/ch19.ipynb).
+  
    You can also run the notebook in Google cloud. This way you don't need to install anything locally. This takes just a few seconds:
    1. Go to [Google Colaboratory](https://colab.research.google.com/notebooks/intro.ipynb#recent=true) in your browser
    2. In the modal window that appears select `GitHub`
