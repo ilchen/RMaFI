@@ -86,7 +86,6 @@ class GARCHParameterEstimator(ParameterEstimator):
                        bounds=bounds, constraints=constr) #, options={'maxiter': 150, 'verbose': 2})
         if res.success:
             ω, α, β = res.x / self.GARCH_PARAM_MULTIPLIERS
-            # print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f' % (ω, α, β))
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
             self.omega = ω
             self.alpha = α
@@ -124,7 +123,6 @@ class EWMAParameterEstimator(ParameterEstimator):
         res = minimize_scalar(objective_func, bounds=(0,1), method='bounded')
 
         if res.success:
-            # print('Optimal value for λ: %.5f' % res.x)
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
             self.lamda = res.x
         else:
@@ -137,15 +135,18 @@ if __name__ == "__main__":
     try:
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
-        data = web.get_data_yahoo('EURUSD=X', start, end)
+        data = web.get_data_yahoo('GBPUSD=X', start, end)
         asset_prices_series = data['Adj Close']
         ch10_ewma = EWMAParameterEstimator(asset_prices_series)
+        print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
+        print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f'
+              % (ch10_garch.omega, ch10_garch.alpha, ch10_garch.beta))
 
     except (IndexError, ValueError) as ex:
         print(
         '''Invalid number of arguments or incorrect values. Usage:
-    {0:s} <path-to-historical-simulation-spreadsheet> 
+    {0:s} 
                 '''.format(sys.argv[0].split(os.sep)[-1]))
     except:
         print("Unexpected error: ", sys.exc_info())
