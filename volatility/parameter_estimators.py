@@ -27,7 +27,7 @@ class ParameterEstimator:
                        representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before current date.
         :param end: (string, int, date, datetime, Timestamp) – Ending date
         :param asset: the ticker simbol of the asset whose asset price changes are to be analyzed. It expects
-                      a Yahoo Finance convention for ticker simbolds
+                      a Yahoo Finance convention for ticker symbols
         '''
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
@@ -41,7 +41,7 @@ class ParameterEstimator:
 
 class GARCHParameterEstimator(ParameterEstimator):
     """
-    Represents an estimator for the GARCH(1, 1) method of forecasting volatility
+    Represents a maximum likelihood estimator for the ω, α, and β parameters of the GARCH(1, 1) model of forecasting volatility
     """
     # Ensuring that ω, α, and β values we will search for have roughly equal values in terms of magnitude
     GARCH_PARAM_MULTIPLIERS = np.array([1e5, 10, 1], dtype=np.float64)
@@ -95,7 +95,7 @@ class GARCHParameterEstimator(ParameterEstimator):
 
 class EWMAParameterEstimator(ParameterEstimator):
     """
-    Represents an estimator for the EWMA method of forecasting volatility
+    Represents an maximum likelihood estimator for the λ parameter of the EWMA method of forecasting volatility
     """
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
         super().__init__(asset_prices_series, start, end, asset)
@@ -128,6 +128,45 @@ class EWMAParameterEstimator(ParameterEstimator):
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
 
+class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
+    """
+    Represents a minimum difference estimator for the λ parameter of the EWMA method of forecasting volatility.
+    Estimate the value of λ in the EWMA model that minimizes the value of Σ(νi - βi)^2, where νi is the variance forecast
+    made at the end of day i − 1 and βi is the variance calculated from data between day i and day i + days_ahead.
+    """
+    def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X', days_ahead=25):
+        super().__init__(asset_prices_series, start, end, asset)
+
+        # Initial value of λ for EWMA
+        λ = .9
+
+        # Making a copy of the square of daily changes
+        ewma_variance = pd.Series(self.data[self.VARIANCE], index=self.data.index, copy=True)
+
+        def objective_func(λ):
+            ''' This function searches for optimal values of the λ parameter of the EWMA
+            model given the sample of asset price changes stored in the 'self.data' DataFrame.
+            :param λ: the λ parameter in EWMA method of estimating volatility
+            '''
+
+            sum = 0.
+            for i in range(1, len(self.data[self.DAILY_RETURN]) - days_ahead):
+                ewma_variance.iloc[i] = (1 - λ) * self.data[self.VARIANCE].iloc[i-1] \
+                                        + λ * ewma_variance.iloc[i-1]
+                # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
+                # so that the results are not unduly influenced by the choice of starting values
+                if i >= days_ahead:
+                    sum += (ewma_variance.iloc[i] - self.data[self.VARIANCE].iloc[i:i+days_ahead].mean())**2
+            return sum
+
+        # print('Starting with objective function value of:', -objective_func(λ))
+        res = minimize_scalar(objective_func, bounds=(0,1), method='bounded')
+
+        if res.success:
+            print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
+            self.lamda = res.x
+        else:
+            raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
 if __name__ == "__main__":
     import sys
     import os
@@ -137,6 +176,14 @@ if __name__ == "__main__":
         end = datetime.datetime(2010, 7, 27)
         data = web.get_data_yahoo('GBPUSD=X', start, end)
         asset_prices_series = data['Adj Close']
+        ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('EURUSD=X', ch10_ewma_md.lamda))
+        ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='CADUSD=X')
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('CADUSD=X', ch10_ewma_md.lamda))
+        ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='GBPUSD=X')
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('GBPUSD=X', ch10_ewma_md.lamda))
+        ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('JPYUSD=X', ch10_ewma_md.lamda))
         ch10_ewma = EWMAParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
