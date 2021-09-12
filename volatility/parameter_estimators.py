@@ -37,7 +37,8 @@ class ParameterEstimator:
         # Dropping the first row as it doesn't contain a daily return value
         self.data = pd.DataFrame({self.CLOSE : asset_prices_series, self.DAILY_RETURN : asset_prices_series.pct_change()},
                                  index=asset_prices_series.index).iloc[1:]
-        self.data[self.VARIANCE] = self.data.ui**2
+        # Essentially only self.data[self.VARIANCE].iloc[1] needs to be set to self.data.ui.iloc[0]**2
+        self.data[self.VARIANCE] = self.data.ui.iloc[0]**2
 
 class GARCHParameterEstimator(ParameterEstimator):
     """
@@ -66,10 +67,10 @@ class GARCHParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                       + β * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(1, len(self.data[self.DAILY_RETURN])):
+            for i in range(2, len(self.data[self.DAILY_RETURN])):
                 self.data[self.VARIANCE].iloc[i] = ω + α * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
                                                      + β * self.data[self.VARIANCE].iloc[i-1]
-            return -(-np.log(self.data[self.VARIANCE]) - self.data[self.DAILY_RETURN] ** 2 / self.data[self.VARIANCE]).sum()
+            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 / self.data[self.VARIANCE].iloc[1:]).sum()
 
         # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
 
@@ -114,10 +115,10 @@ class EWMAParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                       + β * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(1, len(self.data[self.DAILY_RETURN])):
+            for i in range(2, len(self.data[self.DAILY_RETURN])):
                 self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
                                                    + λ * self.data[self.VARIANCE].iloc[i-1]
-            return -(-np.log(self.data[self.VARIANCE]) - self.data[self.DAILY_RETURN] ** 2 / self.data[self.VARIANCE]).sum()
+            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 / self.data[self.VARIANCE].iloc[1:]).sum()
 
         # print('Starting with objective function value of:', -objective_func(λ))
         res = minimize_scalar(objective_func, bounds=(0,1), method='bounded')
@@ -140,9 +141,6 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
         # Initial value of λ for EWMA
         λ = .9
 
-        # Making a copy of the square of daily changes
-        ewma_variance = pd.Series(self.data[self.VARIANCE], index=self.data.index, copy=True)
-
         def objective_func(λ):
             ''' This function searches for optimal values of the λ parameter of the EWMA
             model given the sample of asset price changes stored in the 'self.data' DataFrame.
@@ -150,13 +148,14 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
             '''
 
             sum = 0.
-            for i in range(1, len(self.data[self.DAILY_RETURN]) - days_ahead):
-                ewma_variance.iloc[i] = (1 - λ) * self.data[self.VARIANCE].iloc[i-1] \
-                                        + λ * ewma_variance.iloc[i-1]
+            for i in range(2, len(self.data[self.DAILY_RETURN]) - days_ahead):
+                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
+                                                   + λ * self.data[self.VARIANCE].iloc[i-1]
                 # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
                 # so that the results are not unduly influenced by the choice of starting values
                 if i >= days_ahead:
-                    sum += (ewma_variance.iloc[i] - self.data[self.VARIANCE].iloc[i:i+days_ahead].mean())**2
+                    sum += (self.data[self.VARIANCE].iloc[i]    # Taking an unbiased variance of βi
+                            - (self.data[self.DAILY_RETURN].iloc[i:i+days_ahead]**2).sum()/(days_ahead-1))**2
             return sum
 
         # print('Starting with objective function value of:', -objective_func(λ))
@@ -167,6 +166,7 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
             self.lamda = res.x
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
+
 if __name__ == "__main__":
     import sys
     import os
