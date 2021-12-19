@@ -22,7 +22,7 @@ class ParameterEstimator:
         Constructs a volatility estimator object from either a panda series object indexed by dates
         (i.e. asset_prices_series != None) or from a date range and a desired asset class (i.e. the 'start' abd 'end'
         arguments must be provided)
-        :param asset_proce_series: a pandas Series object indexed by dates
+        :param asset_prices_series: a pandas Series object indexed by dates
         :param start: (string, int, date, datetime, Timestamp) – Starting date. Parses many different kind of date
                        representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before current date.
         :param end: (string, int, date, datetime, Timestamp) – Ending date
