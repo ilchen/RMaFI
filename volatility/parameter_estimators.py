@@ -8,6 +8,7 @@ from scipy.optimize import minimize_scalar
 from scipy.optimize import Bounds
 from scipy.optimize import LinearConstraint
 
+
 class ParameterEstimator:
     """
     Represents an estimator for volatility forecasting parameters
@@ -35,10 +36,11 @@ class ParameterEstimator:
             data = web.get_data_yahoo(asset, start, end)
             asset_prices_series = data['Adj Close']
         # Dropping the first row as it doesn't contain a daily return value
-        self.data = pd.DataFrame({self.CLOSE : asset_prices_series, self.DAILY_RETURN : asset_prices_series.pct_change()},
+        self.data = pd.DataFrame({self.CLOSE: asset_prices_series, self.DAILY_RETURN: asset_prices_series.pct_change()},
                                  index=asset_prices_series.index).iloc[1:]
         # Essentially only self.data[self.VARIANCE].iloc[1] needs to be set to self.data.ui.iloc[0]**2
-        self.data[self.VARIANCE] = self.data.ui.iloc[0]**2
+        self.data[self.VARIANCE] = self.data.ui.iloc[0] ** 2
+
 
 class GARCHParameterEstimator(ParameterEstimator):
     """
@@ -68,9 +70,10 @@ class GARCHParameterEstimator(ParameterEstimator):
             # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                       + β * self.data[self.VARIANCE].iloc[:-1]
             for i in range(2, len(self.data[self.DAILY_RETURN])):
-                self.data[self.VARIANCE].iloc[i] = ω + α * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
-                                                     + β * self.data[self.VARIANCE].iloc[i-1]
-            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 / self.data[self.VARIANCE].iloc[1:]).sum()
+                self.data[self.VARIANCE].iloc[i] = ω + α * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
+                                                   + β * self.data[self.VARIANCE].iloc[i - 1]
+            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 /
+                     self.data[self.VARIANCE].iloc[1:]).sum()
 
         # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
 
@@ -78,13 +81,14 @@ class GARCHParameterEstimator(ParameterEstimator):
         bounds = Bounds([0., 0., 0.], np.array([np.inf, 1., 1.]) * self.GARCH_PARAM_MULTIPLIERS)
 
         # 0*omega + alpha + beta <= 1
-        constr = LinearConstraint([[0, 1 / self.GARCH_PARAM_MULTIPLIERS[1], 1 / self.GARCH_PARAM_MULTIPLIERS[2]]], [0], [1])
+        constr = LinearConstraint([[0, 1 / self.GARCH_PARAM_MULTIPLIERS[1], 1 / self.GARCH_PARAM_MULTIPLIERS[2]]], [0],
+                                  [1])
 
-        constr2 = [{'type':'ineq', 'fun': lambda x:
-            1-x[1]/self.GARCH_PARAM_MULTIPLIERS[1]-x[2]/self.GARCH_PARAM_MULTIPLIERS[2] }]
+        constr2 = [{'type': 'ineq', 'fun': lambda x:
+        1 - x[1] / self.GARCH_PARAM_MULTIPLIERS[1] - x[2] / self.GARCH_PARAM_MULTIPLIERS[2]}]
 
         res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='trust-constr',
-                       bounds=bounds, constraints=constr) #, options={'maxiter': 150, 'verbose': 2})
+                       bounds=bounds, constraints=constr)  # , options={'maxiter': 150, 'verbose': 2})
         if res.success:
             ω, α, β = res.x / self.GARCH_PARAM_MULTIPLIERS
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
@@ -94,10 +98,12 @@ class GARCHParameterEstimator(ParameterEstimator):
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
 
+
 class EWMAParameterEstimator(ParameterEstimator):
     """
     Represents an maximum likelihood estimator for the λ parameter of the EWMA method of forecasting volatility
     """
+
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
         super().__init__(asset_prices_series, start, end, asset)
 
@@ -113,15 +119,16 @@ class EWMAParameterEstimator(ParameterEstimator):
             '''
 
             # Unfortunately not vectorizable as the next value depends on the previous
-            # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
-            #                                       + β * self.data[self.VARIANCE].iloc[:-1]
+            # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
+            #                                     + λ * self.data[self.VARIANCE].iloc[:-1]
             for i in range(2, len(self.data[self.DAILY_RETURN])):
-                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
-                                                   + λ * self.data[self.VARIANCE].iloc[i-1]
-            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 / self.data[self.VARIANCE].iloc[1:]).sum()
+                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
+                                                   + λ * self.data[self.VARIANCE].iloc[i - 1]
+            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 /
+                     self.data[self.VARIANCE].iloc[1:]).sum()
 
         # print('Starting with objective function value of:', -objective_func(λ))
-        res = minimize_scalar(objective_func, bounds=(0,1), method='bounded')
+        res = minimize_scalar(objective_func, bounds=(0, 1), method='bounded')
 
         if res.success:
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
@@ -129,12 +136,14 @@ class EWMAParameterEstimator(ParameterEstimator):
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
 
+
 class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
     """
     Represents a minimum difference estimator for the λ parameter of the EWMA method of forecasting volatility.
     Estimate the value of λ in the EWMA model that minimizes the value of Σ(νi - βi)^2, where νi is the variance forecast
     made at the end of day i − 1 and βi is the variance calculated from data between day i and day i + days_ahead.
     """
+
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X', days_ahead=25):
         super().__init__(asset_prices_series, start, end, asset)
 
@@ -149,23 +158,24 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
 
             sum = 0.
             for i in range(2, len(self.data[self.DAILY_RETURN]) - days_ahead):
-                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i-1]**2 \
-                                                   + λ * self.data[self.VARIANCE].iloc[i-1]
+                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
+                                                   + λ * self.data[self.VARIANCE].iloc[i - 1]
                 # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
                 # so that the results are not unduly influenced by the choice of starting values
                 if i >= days_ahead:
-                    sum += (self.data[self.VARIANCE].iloc[i]    # Taking an unbiased variance of βi
-                            - (self.data[self.DAILY_RETURN].iloc[i:i+days_ahead]**2).sum()/(days_ahead-1))**2
+                    sum += (self.data[self.VARIANCE].iloc[i]  # Taking an unbiased variance of βi
+                            - (self.data[self.DAILY_RETURN].iloc[i:i + days_ahead] ** 2).sum() / (days_ahead - 1)) ** 2
             return sum
 
         # print('Starting with objective function value of:', -objective_func(λ))
-        res = minimize_scalar(objective_func, bounds=(0,1), method='bounded')
+        res = minimize_scalar(objective_func, bounds=(0, 1), method='bounded')
 
         if res.success:
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nfev))
             self.lamda = res.x
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
+
 
 if __name__ == "__main__":
     import sys
@@ -177,13 +187,17 @@ if __name__ == "__main__":
         data = web.get_data_yahoo('GBPUSD=X', start, end)
         asset_prices_series = data['Adj Close']
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
-        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('EURUSD=X', ch10_ewma_md.lamda))
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
+        'EURUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='CADUSD=X')
-        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('CADUSD=X', ch10_ewma_md.lamda))
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
+        'CADUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='GBPUSD=X')
-        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('GBPUSD=X', ch10_ewma_md.lamda))
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
+        'GBPUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
-        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % ('JPYUSD=X', ch10_ewma_md.lamda))
+        print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
+        'JPYUSD=X', ch10_ewma_md.lamda))
         ch10_ewma = EWMAParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
@@ -192,7 +206,7 @@ if __name__ == "__main__":
 
     except (IndexError, ValueError) as ex:
         print(
-        '''Invalid number of arguments or incorrect values. Usage:
+            '''Invalid number of arguments or incorrect values. Usage:
     {0:s} 
                 '''.format(sys.argv[0].split(os.sep)[-1]))
     except:
