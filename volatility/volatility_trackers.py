@@ -2,12 +2,13 @@
 import numpy as np
 import pandas as pd
 import pandas_datareader.data as web
+from pandas.tseries.offsets import BDay
 from math import sqrt
 
 
 class VolatilityTracker:
     """
-    Represents an estimator for volatility forecasting parameters
+    Represents a tracker for volatility and for forecasting future volatilities of a given asset
     """
 
     CLOSE = 'Close'
@@ -16,7 +17,7 @@ class VolatilityTracker:
     TO_ANNUAL_MULTIPLIER = sqrt(252)
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
-        '''
+        """
         Calculates daily volatilities from either a panda series object indexed by dates
         (i.e. asset_prices_series != None) or from a date range and a desired asset class (i.e. the 'start' abd 'end'
         arguments must be provided)
@@ -26,7 +27,7 @@ class VolatilityTracker:
         :param end: (string, int, date, datetime, Timestamp) – Ending date
         :param asset: the ticker simbol of the asset whose asset price changes are to be analyzed. It expects
                       a Yahoo Finance convention for ticker symbols
-        '''
+        """
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
@@ -39,6 +40,9 @@ class VolatilityTracker:
         self.data[self.VARIANCE] = self.data.ui.iloc[0] ** 2
 
     def get_daily_volatilities(self):
+        """
+        Calculates the past volatilities for consecutive range of dates captured in self.data.index
+        """
         return np.sqrt(self.data[self.VARIANCE].iloc[1:])
 
     def get_annual_volatilities(self):
@@ -50,6 +54,29 @@ class VolatilityTracker:
     def get_adj_close_prices(self):
         return self.data[self.CLOSE].values[1:]
 
+    def get_next_business_day_volatility(self):
+        """
+        Returns the daily volatility on the next business day after the last day in the self.data.index
+        """
+        return pd.Series([None], index=[self.data.index[-1] + BDay()], dtype=self.data[self.VARIANCE].dtype)
+
+    def get_next_business_day_annual_volatility(self):
+        """
+        Returns the annual volatility on the next business day after the last day in the self.data.index
+        """
+        return self.get_next_business_day_volatility() * self.TO_ANNUAL_MULTIPLIER
+
+    def get_volatility_forecast(self, n):
+        """
+        :param n: an integer indicating for how many business days in the future daily volatility should be forecast
+        """
+        return pd.Series([None], index=[self.data.index[-1] + n*BDay()], dtype=self.data[self.VARIANCE].dtype)
+
+    def get_annual_volatility_forecast(self, n):
+        """
+        :param n: an integer indicating for how many business days in the future annual volatility should be forecast
+        """
+        return self.get_volatility_forecast(n) * self.TO_ANNUAL_MULTIPLIER
 
 class EWMAVolatilityTracker(VolatilityTracker):
     """
@@ -67,6 +94,20 @@ class EWMAVolatilityTracker(VolatilityTracker):
             self.data[self.VARIANCE].iloc[i] = (1 - lamda) * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
                                                + lamda * self.data[self.VARIANCE].iloc[i - 1]
 
+    def get_next_business_day_volatility(self):
+        s = super().get_next_business_day_volatility()
+        last_idx = len(self.data) - 1
+        s[0] = np.sqrt((1 - self.lamda) * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
+                       + self.lamda * self.data[self.VARIANCE].iloc[last_idx])
+        return s
+
+    def get_volatility_forecast(self, n):
+        """
+        For EMWA the forecast for n business days in the future is the same as for the next business day
+        """
+        s = super().get_volatility_forecast(n)
+        s[0] = self.get_next_business_day_volatility().values[0]
+        return s
 
 class GARCHVolatilityTracker(VolatilityTracker):
     """
@@ -85,3 +126,29 @@ class GARCHVolatilityTracker(VolatilityTracker):
         for i in range(2, len(self.data[self.DAILY_RETURN])):
             self.data[self.VARIANCE].iloc[i] = omega + alpha * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
                                                + beta * self.data[self.VARIANCE].iloc[i - 1]
+
+    def get_vl(self):
+        """
+        Returns the long-term daily variance rate
+        """
+        return  self.omega / (1 - self.alpha - self.beta)
+
+    def get_annual_long_term_volatility(self):
+        """
+        Returns the long-term annual volatility
+        """
+        return sqrt(self.get_vl()) * self.TO_ANNUAL_MULTIPLIER
+
+    def get_next_business_day_volatility(self):
+        s = super().get_next_business_day_volatility()
+        last_idx = len(self.data) - 1
+        s[0] = np.sqrt(self.omega + self.alpha * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2 \
+                       + self.beta * self.data[self.VARIANCE].iloc[last_idx])
+        return s
+
+    def get_volatility_forecast(self, n):
+        s = super().get_volatility_forecast(n)
+        Vl = self.get_vl()
+        next_bd_variance = self.get_next_business_day_volatility().values[0]**2
+        s[0] = np.sqrt(Vl + (self.alpha + self.beta)**n * (next_bd_variance - Vl))
+        return s
