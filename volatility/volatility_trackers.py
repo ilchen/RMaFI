@@ -3,12 +3,16 @@ import numpy as np
 import pandas as pd
 import pandas_datareader.data as web
 from pandas.tseries.offsets import BDay
-from math import sqrt
+from math import sqrt, log, exp
 
 
 class VolatilityTracker:
     """
-    Represents a tracker for volatility and for forecasting future volatilities of a given asset
+    Represents a tracker for volatility and for forecasting future volatilities of a given asset. You instantiate an
+    object of this class with a consecutive range of daily closing prices of a given asset, and then use it to inspect
+    past daily and annual volatilities as well as to predict future volatilities.
+
+    It forms a foundation for pricing options.
     """
 
     CLOSE = 'Close'
@@ -68,15 +72,35 @@ class VolatilityTracker:
 
     def get_volatility_forecast(self, n):
         """
-        :param n: an integer indicating for how many business days in the future daily volatility should be forecast
+        :param n: an integer indicating for which business day in the future daily volatility should be forecast
         """
         return pd.Series([None], index=[self.data.index[-1] + n*BDay()], dtype=self.data[self.VARIANCE].dtype)
 
     def get_annual_volatility_forecast(self, n):
         """
-        :param n: an integer indicating for how many business days in the future annual volatility should be forecast
+        :param n: an integer indicating for which business day in the future annual volatility should be forecast
         """
         return self.get_volatility_forecast(n) * self.TO_ANNUAL_MULTIPLIER
+
+    def get_volatility_forecast_for_next_n_days(self, n):
+        """
+        :param n: an integer indicating for how many business days in the future daily volatility should be forecast
+        """
+        return pd.concat([self.get_volatility_forecast(d) for d in range(1, n)])
+
+    def get_annual_volatility_forecast_for_next_n_days(self, n):
+        """
+        :param n: an integer indicating for how many business days in the future annual volatility should be forecast
+        """
+        return self.get_volatility_forecast_for_next_n_days(n) * self.TO_ANNUAL_MULTIPLIER
+
+    def get_annual_term_volatility_forecast(self, t):
+        """
+        :param t: a float indicating for which future term (expressed in years) average volatility needs to be forecast.
+
+        This is a key method for pricing options.
+        """
+        raise NotImplementedError
 
 class EWMAVolatilityTracker(VolatilityTracker):
     """
@@ -148,7 +172,13 @@ class GARCHVolatilityTracker(VolatilityTracker):
 
     def get_volatility_forecast(self, n):
         s = super().get_volatility_forecast(n)
-        Vl = self.get_vl()
+        vl = self.get_vl()
         next_bd_variance = self.get_next_business_day_volatility().values[0]**2
-        s[0] = np.sqrt(Vl + (self.alpha + self.beta)**n * (next_bd_variance - Vl))
+        s[0] = np.sqrt(vl + (self.alpha + self.beta)**n * (next_bd_variance - vl))
         return s
+
+    def get_annual_term_volatility_forecast(self, t):
+        a = log(1/(self.alpha + self.beta))
+        vl = self.get_vl()
+        next_bd_variance = self.get_next_business_day_volatility().values[0] ** 2
+        return  self.TO_ANNUAL_MULTIPLIER * sqrt(vl + (1 - exp(-a * t)) / (a * t) * (next_bd_variance - vl))
