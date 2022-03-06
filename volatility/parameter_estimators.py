@@ -17,29 +17,52 @@ class ParameterEstimator:
     CLOSE = 'Close'
     DAILY_RETURN = 'ui'
     VARIANCE = 'Variance'
+    NUM_COLUMNS = 3  # Number of DataFrame columns per asset
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
         '''
-        Constructs a volatility estimator object from either a panda series object indexed by dates
-        (i.e. asset_prices_series != None) or from a date range and a desired asset class (i.e. the 'start' abd 'end'
-        arguments must be provided)
-        :param asset_prices_series: a pandas Series object indexed by dates
+        Constructs a volatility estimator object from either a panda Series or DataFrame object indexed by dates
+        (i.e. asset_prices_series != None) or from a date range and a list of desired assets (in which case the
+        'start' and 'end' arguments must be provided).
+
+        You would typically estimate for multiple asset classes (by providing a DataFrame or a list of assets)
+        when you want to construct a variance-covariance matrix, in which case it is essential that all volatilities
+        and correlations be tracked using the same parameters, otherwise the matrix will not be internally consistent.
+
+        :param asset_prices_series: a pandas Series object indexed by dates when we need to estimate a volatility
+                                    forecasting parameter for one asset class or a DataFrame when estimating for
+                                    multiple asset classes
         :param start: (string, int, date, datetime, Timestamp) – Starting date. Parses many different kind of date
-                       representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before current date.
+                       representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before
+                       current date.
         :param end: (string, int, date, datetime, Timestamp) – Ending date
-        :param asset: the ticker simbol of the asset whose asset price changes are to be analyzed. It expects
-                      a Yahoo Finance convention for ticker symbols
+        :param asset: the ticker symbol of the asset whose asset price changes are to be analyzed or an array of ticker
+                      symbols. It expects a Yahoo Finance convention for ticker symbols
         '''
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
             data = web.get_data_yahoo(asset, start, end)
             asset_prices_series = data['Adj Close']
+
         # Dropping the first row as it doesn't contain a daily return value
-        self.data = pd.DataFrame({self.CLOSE: asset_prices_series, self.DAILY_RETURN: asset_prices_series.pct_change()},
-                                 index=asset_prices_series.index).iloc[1:]
-        # Essentially only self.data[self.VARIANCE].iloc[1] needs to be set to self.data.ui.iloc[0]**2
-        self.data[self.VARIANCE] = self.data.ui.iloc[0] ** 2
+        if isinstance(asset_prices_series, pd.Series):
+            self.number_assets = 1
+            self.data = pd.DataFrame({self.CLOSE: asset_prices_series, self.DAILY_RETURN: asset_prices_series.pct_change()},
+                                     index=asset_prices_series.index).iloc[1:]
+            # Essentially only self.data[self.VARIANCE].iloc[1] needs to be set to self.data.ui.iloc[0]**2
+            self.data[self.VARIANCE] = self.data.ui.iloc[0] ** 2
+        else:
+            # Produces a DataFrame with columns:
+            # asset_class_1, asset_class_1ui,asset_class1Variance, asset_class_2, asset_class_2ui, asset_class_2Variance
+            self.number_assets = len(asset_prices_series.columns)
+            self.data = asset_prices_series.copy()
+            for i in range(self.number_assets):
+                self.data.insert(loc=i*3+1, column=self.data.columns[i*3]+self.DAILY_RETURN,
+                                 value=self.data.iloc[:,i*3].pct_change())
+                self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE,
+                                 value=self.data.iloc[:,i*3+1] ** 2)
+            self.data = self.data.iloc[1:]
 
 
 class GARCHParameterEstimator(ParameterEstimator):
@@ -69,11 +92,15 @@ class GARCHParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                       + β * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(2, len(self.data[self.DAILY_RETURN])):
-                self.data[self.VARIANCE].iloc[i] = ω + α * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
-                                                   + β * self.data[self.VARIANCE].iloc[i - 1]
-            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 /
-                     self.data[self.VARIANCE].iloc[1:]).sum()
+            for i in range(2, len(self.data)):
+                for j in range(self.number_assets):
+                    self.data.iloc[i, j*3+2] = ω + α * self.data.iloc[i-1, j*3+1] ** 2 \
+                                                   + β * self.data.iloc[i-1, j*3+2]
+            sum = 0.
+            for j in range(self.number_assets):
+                sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
+                        self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+            return sum
 
         # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
 
@@ -81,8 +108,8 @@ class GARCHParameterEstimator(ParameterEstimator):
         bounds = Bounds([0., 0., 0.], np.array([np.inf, 1., 1.]) * self.GARCH_PARAM_MULTIPLIERS)
 
         # 0*omega + alpha + beta <= 1
-        constr = LinearConstraint([[0, 1 / self.GARCH_PARAM_MULTIPLIERS[1], 1 / self.GARCH_PARAM_MULTIPLIERS[2]]], [0],
-                                  [1])
+        constr = LinearConstraint([[0, 1 / self.GARCH_PARAM_MULTIPLIERS[1], 1 / self.GARCH_PARAM_MULTIPLIERS[2]]],
+                                  [0], [1])
 
         constr2 = [{'type': 'ineq', 'fun': lambda x:
         1 - x[1] / self.GARCH_PARAM_MULTIPLIERS[1] - x[2] / self.GARCH_PARAM_MULTIPLIERS[2]}]
@@ -121,11 +148,17 @@ class EWMAParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                     + λ * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(2, len(self.data[self.DAILY_RETURN])):
-                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
-                                                   + λ * self.data[self.VARIANCE].iloc[i - 1]
-            return -(-np.log(self.data[self.VARIANCE].iloc[1:]) - self.data[self.DAILY_RETURN].iloc[1:] ** 2 /
-                     self.data[self.VARIANCE].iloc[1:]).sum()
+            for i in range(2, len(self.data)):
+                for j in range(self.number_assets):
+                    # We have 3 columns per asset, the first contains closing prices, the second percentage changes,
+                    # and the third the actual variance. So j*3+2 is variance and j*3+1 percentage changes
+                    self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
+                                                   + λ * self.data.iloc[i-1, j*3+2]
+            sum = 0.
+            for j in range(self.number_assets):
+                sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
+                        self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+            return sum
 
         # print('Starting with objective function value of:', -objective_func(λ))
         res = minimize_scalar(objective_func, bounds=(0, 1), method='bounded')
@@ -157,14 +190,15 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
             '''
 
             sum = 0.
-            for i in range(2, len(self.data[self.DAILY_RETURN]) - days_ahead):
-                self.data[self.VARIANCE].iloc[i] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
-                                                   + λ * self.data[self.VARIANCE].iloc[i - 1]
-                # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
-                # so that the results are not unduly influenced by the choice of starting values
-                if i >= days_ahead:
-                    sum += (self.data[self.VARIANCE].iloc[i]  # Taking an unbiased variance of βi
-                            - (self.data[self.DAILY_RETURN].iloc[i:i + days_ahead] ** 2).sum() / (days_ahead - 1)) ** 2
+            for i in range(2, len(self.data) - days_ahead):
+                for j in range(self.number_assets):
+                    self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
+                                                   + λ * self.data.iloc[i-1, j*3+2]
+                    # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
+                    # so that the results are not unduly influenced by the choice of starting values
+                    if i >= days_ahead:
+                        sum += (self.data.iloc[i, j*3+2]  # Taking an unbiased variance of βi
+                                - (self.data.iloc[i:i + days_ahead, j*3+1] ** 2).sum() / (days_ahead - 1)) ** 2
             return sum
 
         # print('Starting with objective function value of:', -objective_func(λ))
@@ -198,6 +232,7 @@ if __name__ == "__main__":
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
         'JPYUSD=X', ch10_ewma_md.lamda))
+        #data = web.get_data_yahoo(['^GSPC', 'AAPL'], start, end)
         ch10_ewma = EWMAParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)

@@ -29,7 +29,7 @@ class VolatilityTracker:
         :param start: (string, int, date, datetime, Timestamp) – Starting date. Parses many different kind of date
                        representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before current date.
         :param end: (string, int, date, datetime, Timestamp) – Ending date
-        :param asset: the ticker simbol of the asset whose asset price changes are to be analyzed. It expects
+        :param asset: the ticker symbol of the asset whose asset price changes are to be analyzed. It expects
                       a Yahoo Finance convention for ticker symbols
         """
         if asset_prices_series is None:
