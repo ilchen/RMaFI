@@ -53,8 +53,14 @@ Code in `ch14/` replicates the functionality in [VaRExampleRMFI3eModelBuilding.x
    5. Enjoy
 
    I make heavy use of the [SciPy](https://docs.scipy.org/doc/scipy/reference/index.html) and [TensorFlow 2](https://www.tensorflow.org/api_docs/python/tf) libraries in these exercises.
-   as they draw heavily on probability theory and solving optimization problems. These exercises are fairly simple from software design point of view, so I limited the implementation to a Jupiter notebook:
+   as they draw heavily on probability theory and solving optimization problems. These exercises are fairly simple from software design point of view, so I limited the implementation to a Jupiter notebook.
 
+   Despite there not being that many challenging exercises concerning the tracking and forecasting variances-covariances,
+   I decided to create required classes to track and visualize correlations in a separate Jupiter notebook:
+   ```commandline
+   jupyter notebook ch11_variance_covariance.ipynb
+   ```
+   A full run of the notebook can be seen [here](https://github.com/ilchen/RMaFI/blob/master/ch11_variance_covariance.ipynb).  
 
 * **Chapter 13**: Market Risk VaR: The Historical Simulation Approach
    ```commandline

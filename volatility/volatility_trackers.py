@@ -27,7 +27,8 @@ class VolatilityTracker:
         arguments must be provided)
         :param asset_prices_series: a pandas Series object indexed by dates
         :param start: (string, int, date, datetime, Timestamp) – Starting date. Parses many different kind of date
-                       representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before current date.
+                       representations (e.g., ‘JAN-01-2010’, ‘1/1/10’, ‘Jan, 1, 1980’). Defaults to 5 years before
+                       current date.
         :param end: (string, int, date, datetime, Timestamp) – Ending date
         :param asset: the ticker symbol of the asset whose asset price changes are to be analyzed. It expects
                       a Yahoo Finance convention for ticker symbols
@@ -102,6 +103,7 @@ class VolatilityTracker:
         """
         raise NotImplementedError
 
+
 class EWMAVolatilityTracker(VolatilityTracker):
     """
     Represents an Exponentially-Weighted Moving Average volatility tracker with a given λ parameter
@@ -133,6 +135,7 @@ class EWMAVolatilityTracker(VolatilityTracker):
         s[0] = self.get_next_business_day_volatility().values[0]
         return s
 
+
 class GARCHVolatilityTracker(VolatilityTracker):
     """
     Represents a GARCH(1, 1) volatility tracker with given ω, α, and β parameters
@@ -155,7 +158,13 @@ class GARCHVolatilityTracker(VolatilityTracker):
         """
         Returns the long-term daily variance rate
         """
-        return  self.omega / (1 - self.alpha - self.beta)
+        return self.omega / (1 - self.alpha - self.beta)
+
+    def get_long_term_volatility(self):
+        """
+        Returns the long-term annual volatility
+        """
+        return sqrt(self.get_vl())
 
     def get_annual_long_term_volatility(self):
         """
@@ -166,7 +175,7 @@ class GARCHVolatilityTracker(VolatilityTracker):
     def get_next_business_day_volatility(self):
         s = super().get_next_business_day_volatility()
         last_idx = len(self.data) - 1
-        s[0] = np.sqrt(self.omega + self.alpha * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2 \
+        s[0] = np.sqrt(self.omega + self.alpha * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
                        + self.beta * self.data[self.VARIANCE].iloc[last_idx])
         return s
 
@@ -181,4 +190,4 @@ class GARCHVolatilityTracker(VolatilityTracker):
         a = log(1/(self.alpha + self.beta))
         vl = self.get_vl()
         next_bd_variance = self.get_next_business_day_volatility().values[0] ** 2
-        return  self.TO_ANNUAL_MULTIPLIER * sqrt(vl + (1 - exp(-a * t)) / (a * t) * (next_bd_variance - vl))
+        return self.TO_ANNUAL_MULTIPLIER * sqrt(vl + (1 - exp(-a * t)) / (a * t) * (next_bd_variance - vl))

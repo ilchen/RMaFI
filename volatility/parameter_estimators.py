@@ -20,7 +20,7 @@ class ParameterEstimator:
     NUM_COLUMNS = 3  # Number of DataFrame columns per asset
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
-        '''
+        """
         Constructs a volatility estimator object from either a panda Series or DataFrame object indexed by dates
         (i.e. asset_prices_series != None) or from a date range and a list of desired assets (in which case the
         'start' and 'end' arguments must be provided).
@@ -38,7 +38,7 @@ class ParameterEstimator:
         :param end: (string, int, date, datetime, Timestamp) – Ending date
         :param asset: the ticker symbol of the asset whose asset price changes are to be analyzed or an array of ticker
                       symbols. It expects a Yahoo Finance convention for ticker symbols
-        '''
+        """
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
@@ -112,7 +112,7 @@ class GARCHParameterEstimator(ParameterEstimator):
                                   [0], [1])
 
         constr2 = [{'type': 'ineq', 'fun': lambda x:
-        1 - x[1] / self.GARCH_PARAM_MULTIPLIERS[1] - x[2] / self.GARCH_PARAM_MULTIPLIERS[2]}]
+                    1 - x[1] / self.GARCH_PARAM_MULTIPLIERS[1] - x[2] / self.GARCH_PARAM_MULTIPLIERS[2]}]
 
         res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='trust-constr',
                        bounds=bounds, constraints=constr)  # , options={'maxiter': 150, 'verbose': 2})
@@ -138,12 +138,12 @@ class EWMAParameterEstimator(ParameterEstimator):
         λ = .9
 
         def objective_func(λ):
-            ''' This function searches for optimal values of the λ parameter of the EWMA
+            """ This function searches for optimal values of the λ parameter of the EWMA
             model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
             optimization routines that minimize an objective function, this function returns negates the value of the
             log likelihood objective function for EWMA.
             :param λ: the λ parameter in EWMA method of estimating volatility
-            '''
+            """
 
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
@@ -173,8 +173,9 @@ class EWMAParameterEstimator(ParameterEstimator):
 class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
     """
     Represents a minimum difference estimator for the λ parameter of the EWMA method of forecasting volatility.
-    Estimate the value of λ in the EWMA model that minimizes the value of Σ(νi - βi)^2, where νi is the variance forecast
-    made at the end of day i − 1 and βi is the variance calculated from data between day i and day i + days_ahead.
+    Estimates the value of λ in the EWMA model such that it minimizes the value of Σ(νi - βi)^2, where νi is
+    the variance forecast made at the end of day i − 1 and βi is the variance calculated from data between
+    day i and day i + days_ahead.
     """
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X', days_ahead=25):
@@ -184,10 +185,10 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
         λ = .9
 
         def objective_func(λ):
-            ''' This function searches for optimal values of the λ parameter of the EWMA
+            """ This function searches for optimal values of the λ parameter of the EWMA
             model given the sample of asset price changes stored in the 'self.data' DataFrame.
             :param λ: the λ parameter in EWMA method of estimating volatility
-            '''
+            """
 
             sum = 0.
             for i in range(2, len(self.data) - days_ahead):
@@ -222,17 +223,17 @@ if __name__ == "__main__":
         asset_prices_series = data['Adj Close']
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
-        'EURUSD=X', ch10_ewma_md.lamda))
+                'EURUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='CADUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
-        'CADUSD=X', ch10_ewma_md.lamda))
+                'CADUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='GBPUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
-        'GBPUSD=X', ch10_ewma_md.lamda))
+                'GBPUSD=X', ch10_ewma_md.lamda))
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
-        'JPYUSD=X', ch10_ewma_md.lamda))
-        #data = web.get_data_yahoo(['^GSPC', 'AAPL'], start, end)
+                'JPYUSD=X', ch10_ewma_md.lamda))
+        # data = web.get_data_yahoo(['^GSPC', 'AAPL'], start, end)
         ch10_ewma = EWMAParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
