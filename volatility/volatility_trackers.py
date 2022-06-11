@@ -53,11 +53,23 @@ class VolatilityTracker:
     def get_annual_volatilities(self):
         return self.get_daily_volatilities() * self.TO_ANNUAL_MULTIPLIER
 
+    def get_annual_volatilities_for_dates(self, dates):
+        """
+        :dates the dates for which to obtain closing prices represented by a DatetimeIndex object
+        """
+        return self.get_daily_volatilities()[dates] * self.TO_ANNUAL_MULTIPLIER
+
     def get_dates(self):
         return self.data.index[1:]
 
     def get_adj_close_prices(self):
         return self.data[self.CLOSE].values[1:]
+
+    def get_adj_close_prices_for_dates(self, dates):
+        """
+        :dates the dates for which to obtain closing prices represented by a DatetimeIndex object
+        """
+        return self.data[self.CLOSE][dates].values
 
     def get_next_business_day_volatility(self):
         """

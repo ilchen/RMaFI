@@ -38,6 +38,8 @@ class CovarianceTracker:
         else:
             self.data = asset_prices.copy()
 
+        self.data.dropna(inplace=True)
+
         # Daily percentage changes in the first asset
         self.data.insert(loc=2, column=self.data.columns[0] + self.DAILY_RETURN,
                          value=self.data.iloc[:, 0].pct_change())

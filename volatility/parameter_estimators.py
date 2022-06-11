@@ -58,10 +58,9 @@ class ParameterEstimator:
             self.number_assets = len(asset_prices_series.columns)
             self.data = asset_prices_series.copy()
             for i in range(self.number_assets):
-                self.data.insert(loc=i*3+1, column=self.data.columns[i*3]+self.DAILY_RETURN,
-                                 value=self.data.iloc[:,i*3].pct_change())
-                self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE,
-                                 value=self.data.iloc[:,i*3+1] ** 2)
+                uis = self.data.iloc[:,i*3].dropna().pct_change()
+                self.data.insert(loc=i*3+1, column=self.data.columns[i*3]+self.DAILY_RETURN, value=uis)
+                self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE, value=uis[1] ** 2)
             self.data = self.data.iloc[1:]
 
 
@@ -92,14 +91,23 @@ class GARCHParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                       + β * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(2, len(self.data)):
-                for j in range(self.number_assets):
-                    self.data.iloc[i, j*3+2] = ω + α * self.data.iloc[i-1, j*3+1] ** 2 \
-                                                   + β * self.data.iloc[i-1, j*3+2]
+            # for i in range(2, len(self.data)):
+            #     for j in range(self.number_assets):
+            #         self.data.iloc[i, j*3+2] = ω + α * self.data.iloc[i-1, j*3+1] ** 2 \
+            #                                        + β * self.data.iloc[i-1, j*3+2]
+            # sum = 0.
+            # for j in range(self.number_assets):
+            #     sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
+            #             self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+
+            # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
             sum = 0.
             for j in range(self.number_assets):
-                sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
-                        self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+                df_copy = self.data.iloc[:, j*3+1:j*3+3].dropna()
+                for i in range(2, len(df_copy)):
+                    df_copy.iloc[i, 1] = ω + α * df_copy.iloc[i - 1, 0] ** 2 + β * df_copy.iloc[i - 1, 1]
+                sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
+
             return sum
 
         # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
@@ -148,16 +156,25 @@ class EWMAParameterEstimator(ParameterEstimator):
             # Unfortunately not vectorizable as the next value depends on the previous
             # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
             #                                     + λ * self.data[self.VARIANCE].iloc[:-1]
-            for i in range(2, len(self.data)):
-                for j in range(self.number_assets):
-                    # We have 3 columns per asset, the first contains closing prices, the second percentage changes,
-                    # and the third the actual variance. So j*3+2 is variance and j*3+1 percentage changes
-                    self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
-                                                   + λ * self.data.iloc[i-1, j*3+2]
+            # for i in range(1, len(self.data)):
+            #     for j in range(self.number_assets):
+            #         # We have 3 columns per asset, the first contains closing prices, the second percentage changes,
+            #         # and the third the actual variance. So j*3+2 is variance and j*3+1 percentage changes
+            #         self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
+            #                                        + λ * self.data.iloc[i-1, j*3+2]
+
+            # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
             sum = 0.
             for j in range(self.number_assets):
-                sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
-                        self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+                df_copy = self.data.iloc[:, j*3+1:j*3+3].dropna()
+                for i in range(2, len(df_copy)):
+                    df_copy.iloc[i, 1] = (1 - λ) * df_copy.iloc[i - 1, 0] ** 2 + λ * df_copy.iloc[i - 1, 1]
+                sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
+
+            # sum = 0.
+            # for j in range(self.number_assets):
+            #     sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
+            #             self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
             return sum
 
         # print('Starting with objective function value of:', -objective_func(λ))
@@ -219,6 +236,8 @@ if __name__ == "__main__":
     try:
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
+        start = datetime.datetime(2019, 12, 15)
+        end = datetime.datetime.today()
         data = web.get_data_yahoo('GBPUSD=X', start, end)
         asset_prices_series = data['Adj Close']
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
@@ -233,8 +252,9 @@ if __name__ == "__main__":
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
                 'JPYUSD=X', ch10_ewma_md.lamda))
-        # data = web.get_data_yahoo(['^GSPC', 'AAPL'], start, end)
-        ch10_ewma = EWMAParameterEstimator(asset_prices_series)
+        # data = web.get_data_yahoo(['^GSPC', 'BTC-USD'], start, end)
+        # asset_prices = data['Adj Close']
+        ch10_ewma = GARCHParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
         print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f'
