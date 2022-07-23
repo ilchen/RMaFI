@@ -1,0 +1,82 @@
+import pandas as pd
+from scipy.interpolate import InterpolatedUnivariateSpline
+from pandas.tseries.offsets import BDay
+from datetime import timedelta, date, time, datetime
+
+
+class YieldCurve:
+    """
+    A Yield curve defined by a list of {maturity, interest rate} pairs.
+    """
+
+    def  __init__(self, date, maturities, rates, k=3, align_on_business_days=True):
+        """
+        Constructs a new curve based on specified maturities and rates.
+
+        :param date: a datetime.date object relative to which the maturities are to be applied
+        :param maturities: a list of relativedelta instances in increasing order
+        :param rates: a list of corresponding yields in percent per annum
+        :param k: degree of the smoothing spline for interpolation
+        """
+        assert  len(maturities) == len(rates) >= 2
+        dt = datetime.combine(date, time())
+        self.timestamps = [(dt + maturity
+                           + (BDay(0) if align_on_business_days else timedelta())).timestamp() for maturity in maturities]
+
+        # Verify it is monotonically increasing
+        assert  all(self.timestamps[i] <= self.timestamps[i + 1] for i in range(len(maturities) - 1))
+        self.ppoly = InterpolatedUnivariateSpline(self.timestamps, rates, k=k)
+        self.date = (date + BDay(0)).date() if align_on_business_days else date
+        self.align_on_bd = align_on_business_days
+
+    def  get_curve_dates(self):
+        """
+        Returns curve dates for which yields were provided as datetime.date objects,
+        possibly aligned with business dates.
+        """
+        return  [date.fromtimestamp(timestamp) for timestamp in self.timestamps]
+
+    def  get_yield_for_maturity_date(self, date):
+        """
+        Returns the yield for maturity corresponding to 'date', possibly aligned on the next business day if 'date'
+        is not a business date.
+
+        :param date: a datetime.date object for which the yield needs to be calculated
+        """
+        timestamp = (datetime.combine(date, time()) + (BDay(0) if self.align_on_bd else timedelta())).timestamp()
+        assert  self.timestamps[0] <= timestamp <= self.timestamps[-1]
+        return  self.ppoly(timestamp)
+
+    def  get_yield_for_maturity_timestamp(self, timestamp):
+        """
+        Returns the yield for maturity corresponding to 'timestamp'
+
+        :param timestamp: a POSIX timestamp (number of seconds since 1st Jan 1970 UTC).
+        """
+        assert  self.timestamps[0] <= timestamp <= self.timestamps[-1]
+        return  self.ppoly(timestamp).tolist()
+
+    def  get_curve_points(self, n):
+        """
+        Returns a Series object corresponding to this yield curve points evenly spaced, indexed by datatime.date values
+
+        :param n: the number of points to return, must be >= 2.
+        """
+        assert n >= 2
+        delta = (self.timestamps[-1] - self.timestamps[0]) / (n - 1)
+        timestamps = [self.timestamps[0] + i * delta  for i in range(n)]
+        pairs = list(zip(*[(date.fromtimestamp(timestamp), self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
+        return pd.Series(pairs[1], index=pairs[0], name=str(self.date))
+
+    def  get_curve_points_indexed_by_maturities(self, n):
+        """
+        Returns a Series object corresponding to this yields curve points evenly spaced, indexed by pandas.Timedelta values
+
+        :param n: the number of points to return, must be >= 2.
+        """
+        assert n >= 2
+        delta = (self.timestamps[-1] - self.timestamps[0]) / (n - 1)
+        timestamps = [self.timestamps[0] + i * delta  for i in range(n)]
+        pairs = list(zip(*[(date.fromtimestamp(timestamp) - self.date,
+                            self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
+        return pd.Series(pairs[1], index=pairs[0], name=str(self.date))
