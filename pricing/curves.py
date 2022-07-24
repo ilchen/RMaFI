@@ -93,7 +93,7 @@ class YieldCurve:
         pairs = list(zip(*[(date.fromtimestamp(timestamp), self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
         return pd.Series(pairs[1], index=pairs[0], name=str(self.date))
 
-    def  get_curve_points_indexed_by_maturities(self, n, maturityRepr=MaturityRepresentation.PANDAS_TIMEDELTA):
+    def  get_curve_points_indexed_by_maturities(self, n, maturity_repr=MaturityRepresentation.PANDAS_TIMEDELTA):
         """
         Returns a Series object corresponding to this yields curve points evenly spaced, indexed by maturities. pandas.Timedelta values
 
@@ -106,9 +106,9 @@ class YieldCurve:
         pairs = list(zip(*[(date.fromtimestamp(timestamp) - self.date,
                             self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
         ret = pd.Series(pairs[1], index=pairs[0], name=str(self.date))
-        if maturityRepr != MaturityRepresentation.PANDAS_TIMEDELTA:
+        if maturity_repr != MaturityRepresentation.PANDAS_TIMEDELTA:
             ret = ret.set_axis(ret.index.days)
-            if maturityRepr == MaturityRepresentation.YEARS:
+            if maturity_repr == MaturityRepresentation.YEARS:
                 # Compensation for leap years, dividing the number of days by 365 will incorrectly represent
                 # long maturities expressed in years
                 last_year = date.fromtimestamp(timestamps[-1]).year
