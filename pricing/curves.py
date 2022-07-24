@@ -2,11 +2,36 @@ import pandas as pd
 from scipy.interpolate import InterpolatedUnivariateSpline
 from pandas.tseries.offsets import BDay
 from datetime import timedelta, date, time, datetime
+from enum import Enum, unique
+from functools import reduce
 
+
+@unique
+class MaturityRepresentation(Enum):
+    """
+    A preferred index type for curve points returned by the :class:`~pricing.curves.YieldCurve` class.
+    """
+
+    PANDAS_TIMEDELTA = 0
+    """
+    Representation of maturities as pandas._libs.tslibs.timedeltas.Timedelta objects
+    """
+
+    DAYS = 1
+    """
+    Representation of maturities as numpy.int64 objects representing days
+    """
+
+    YEARS = 2
+    """
+    Representation of maturities as numpy.float64 objects representing years
+    """
 
 class YieldCurve:
     """
-    A Yield curve defined by a list of {maturity, interest rate} pairs.
+    A Yield curve defined by a list of {maturity, interest rate} pairs. This class uses Cubic splines by default
+    to interpolate when constructing the curve. See <a href="http://web.math.ku.dk/~rolf/HaganWest.pdf">this article</a>
+    for more details on interpolation methods.
     """
 
     def  __init__(self, date, maturities, rates, k=3, align_on_business_days=True):
@@ -45,7 +70,7 @@ class YieldCurve:
         """
         timestamp = (datetime.combine(date, time()) + (BDay(0) if self.align_on_bd else timedelta())).timestamp()
         assert  self.timestamps[0] <= timestamp <= self.timestamps[-1]
-        return  self.ppoly(timestamp)
+        return  self.ppoly(timestamp).tolist()
 
     def  get_yield_for_maturity_timestamp(self, timestamp):
         """
@@ -68,15 +93,28 @@ class YieldCurve:
         pairs = list(zip(*[(date.fromtimestamp(timestamp), self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
         return pd.Series(pairs[1], index=pairs[0], name=str(self.date))
 
-    def  get_curve_points_indexed_by_maturities(self, n):
+    def  get_curve_points_indexed_by_maturities(self, n, maturityRepr=MaturityRepresentation.PANDAS_TIMEDELTA):
         """
-        Returns a Series object corresponding to this yields curve points evenly spaced, indexed by pandas.Timedelta values
+        Returns a Series object corresponding to this yields curve points evenly spaced, indexed by maturities. pandas.Timedelta values
 
         :param n: the number of points to return, must be >= 2.
+        :param indexType
         """
         assert n >= 2
         delta = (self.timestamps[-1] - self.timestamps[0]) / (n - 1)
         timestamps = [self.timestamps[0] + i * delta  for i in range(n)]
         pairs = list(zip(*[(date.fromtimestamp(timestamp) - self.date,
                             self.ppoly(timestamp).tolist()) for timestamp in timestamps]))
-        return pd.Series(pairs[1], index=pairs[0], name=str(self.date))
+        ret = pd.Series(pairs[1], index=pairs[0], name=str(self.date))
+        if maturityRepr != MaturityRepresentation.PANDAS_TIMEDELTA:
+            ret = ret.set_axis(ret.index.days)
+            if maturityRepr == MaturityRepresentation.YEARS:
+                # Compensation for leap years, dividing the number of days by 365 will incorrectly represent
+                # long maturities expressed in years
+                last_year = date.fromtimestamp(timestamps[-1]).year
+                num_leap_years = reduce(lambda accu, year: accu + (year % 4 == 0 and year % 100 != 0 or year % 4 == 0 and year % 400 == 0),
+                                       range(self.date.year, last_year), 0)
+                leap_years_add_on = num_leap_years / (last_year - self.date.year)
+                num_years_index = ret.index / (365. + leap_years_add_on)
+                ret = ret.set_axis(num_years_index)
+        return  ret
