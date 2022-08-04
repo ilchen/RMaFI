@@ -82,7 +82,8 @@ class BlackScholesMertonPricer(OptionsPricer):
     def __init__(self, maturity, volatility_tracker, strike, curve, cur_price, is_call=True,
                  opt_type=OptionType.EUROPEAN, ticker=OptionsPricer.UNSPECIFIED_TICKER, dividends=None):
         """
-        Constructs a pricer for based on specified maturities and rates.
+        Constructs a pricer based on the Black-Scholes-Merton options pricing model. It can price any European option
+        and any American call option including those whose underlying stock pays dividend.
 
         :param maturity: a datetime.date specifying the day the options matures on
         :param volatility_tracker: a VolatilityTracker object
