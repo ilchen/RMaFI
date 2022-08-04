@@ -107,13 +107,21 @@ class VolatilityTracker:
         """
         return self.get_volatility_forecast_for_next_n_days(n) * self.TO_ANNUAL_MULTIPLIER
 
-    def get_annual_term_volatility_forecast(self, t):
+    def get_term_volatility_forecast(self, t):
         """
         :param t: a float indicating for which future term (expressed in years) average volatility needs to be forecast.
 
         This is a key method for pricing options.
         """
         raise NotImplementedError
+
+    def get_annual_term_volatility_forecast(self, t):
+        """
+        :param t: a float indicating for which future term (expressed in years) average volatility needs to be forecast.
+
+        This is a key method for pricing options.
+        """
+        return self.get_term_volatility_forecast(t) * self.TO_ANNUAL_MULTIPLIER
 
 
 class EWMAVolatilityTracker(VolatilityTracker):
@@ -146,6 +154,12 @@ class EWMAVolatilityTracker(VolatilityTracker):
         s = super().get_volatility_forecast(n)
         s[0] = self.get_next_business_day_volatility().values[0]
         return s
+
+    def get_term_volatility_forecast(self, t):
+        """
+        For EMWA the forecast for a period of t years in the future is the same as for the next business day
+        """
+        return self.get_next_business_day_volatility()
 
 
 class GARCHVolatilityTracker(VolatilityTracker):
@@ -198,8 +212,9 @@ class GARCHVolatilityTracker(VolatilityTracker):
         s[0] = np.sqrt(vl + (self.alpha + self.beta)**n * (next_bd_variance - vl))
         return s
 
-    def get_annual_term_volatility_forecast(self, t):
+    def get_term_volatility_forecast(self, t):
         a = log(1/(self.alpha + self.beta))
         vl = self.get_vl()
         next_bd_variance = self.get_next_business_day_volatility().values[0] ** 2
-        return self.TO_ANNUAL_MULTIPLIER * sqrt(vl + (1 - exp(-a * t)) / (a * t) * (next_bd_variance - vl))
+        return sqrt(vl + (1 - exp(-a * t)) / (a * t) * (next_bd_variance - vl))\
+            if t > 9.1e-5 else self.get_next_business_day_volatility()[0] # 9.1e-5 is about 8 hours
