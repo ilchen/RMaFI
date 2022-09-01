@@ -14,6 +14,9 @@ class OptionType(Enum):
     EUROPEAN = 0
     AMERICAN = 1
 
+    def __str__(self):
+        return self.name
+
 
 class OptionsPricer:
     """
@@ -72,11 +75,11 @@ class OptionsPricer:
                 self.divs = None
 
     def __str__(self):
-        return '%s %s option with strike %s and maturity %s, price: %.2f, \u03c3: %.2f, '\
+        return '%s %s %s option with strike %s and maturity %s, price: %.2f, \u03c3: %.2f, '\
                '\u0394: %.3f, \u0393: %.3f, \u03Bd: %.3f'\
-              % (self.ticker, 'call' if self.is_call else 'put', locale.currency(self.strike, grouping=True),
-                 self.maturity_date.strftime('%Y-%m-%d'), self.get_price(), self.annual_volatility,
-                 self.get_delta(), self.get_gamma(), self.get_vega())
+              % (self.ticker, self.opt_type, 'call' if self.is_call else 'put',
+                 locale.currency(self.strike, grouping=True), self.maturity_date.strftime('%Y-%m-%d'),
+                 self.get_price(), self.annual_volatility, self.get_delta(), self.get_gamma(), self.get_vega())
 
     def get_npv_dividends(self, t=0.):
         """
@@ -290,8 +293,11 @@ class BinomialTreePricer(OptionsPricer):
             for j in range(i+1):
                 self.tree[i][j][0] += npv_divs
                 opt_price = (self.p * self.tree[i+1][j][1] + (1 - self.p) * self.tree[i+1][j+1][1]) * dcf
-                self.tree[i][j][1] = max(opt_price, self.tree[i][j][0] - self.strike) if self.is_call\
-                                        else max(opt_price, self.strike - self.tree[i][j][0])
+                if self.opt_type == OptionType.EUROPEAN:
+                    self.tree[i][j][1] = opt_price
+                else:
+                    self.tree[i][j][1] = max(opt_price, self.tree[i][j][0] - self.strike) if self.is_call\
+                                            else max(opt_price, self.strike - self.tree[i][j][0])
 
     def get_price(self):
         return self.tree[0][0][1]
@@ -406,6 +412,9 @@ if __name__ == "__main__":
         pricer_put = BinomialTreePricer(maturity_date, vol_tracker, strike, curve, cur_price, is_call=False,
                                         ticker=TICKER, dividends=divs, opt_type=OptionType.AMERICAN)
         print(pricer_put)
+        pricer_put = BinomialTreePricer(maturity_date, vol_tracker, strike, curve, cur_price, is_call=False,
+                                        ticker=TICKER, dividends=divs, opt_type=OptionType.EUROPEAN)
+        print(pricer_put)
 
         maturity_date = date(2023, month=3, day=17)
         vol = vol_tracker.get_annual_term_volatility_forecast(curve.to_years(maturity_date))
@@ -420,6 +429,7 @@ if __name__ == "__main__":
         pricer_put = BinomialTreePricer(maturity_date, vol_tracker, strike, curve, cur_price, is_call=False,
                                         ticker=TICKER, dividends=divs, opt_type=OptionType.AMERICAN)
         print(pricer_put)
+
         impl_vol = .3084
         print('\nPricing with an implied volatility of %.2f' % impl_vol)
         pricer = BlackScholesMertonPricer(maturity_date, impl_vol, strike, curve, cur_price,
