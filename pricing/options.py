@@ -2,6 +2,7 @@ from enum import Enum, unique
 from math import sqrt, log, exp
 from datetime import date, timedelta
 
+import locale
 import pandas as pd
 from scipy.stats import norm
 

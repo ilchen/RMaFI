@@ -69,13 +69,13 @@ class GARCHParameterEstimator(ParameterEstimator):
     Represents a maximum likelihood estimator for the ω, α, and β parameters of the GARCH(1, 1) model of forecasting volatility
     """
     # Ensuring that ω, α, and β values we will search for have roughly equal values in terms of magnitude
-    GARCH_PARAM_MULTIPLIERS = np.array([1e5, 10, 1], dtype=np.float64)
+    GARCH_PARAM_MULTIPLIERS = np.array([1e5, 1, .1], dtype=np.float64)
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
         super().__init__(asset_prices_series, start, end, asset)
 
         # Initial values for ω, α, and β parameters for GARCH
-        x0 = np.array([1e-8, 1e-3, 1e-1], dtype=np.float64)
+        x0 = np.array([1e-5, .1, .8], dtype=np.float64)
 
         def objective_func(x):
             ''' This function searches for optimal values of the ω, α, and β parameters of the GARCH(1, 1)
@@ -103,7 +103,9 @@ class GARCHParameterEstimator(ParameterEstimator):
             # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
             sum = 0.
             for j in range(self.number_assets):
-                df_copy = self.data.iloc[:, j*3+1:j*3+3].dropna()
+                df_copy = self.data.iloc[:, j*3+1:j*3+3]
+                if self.number_assets > 1:
+                    df_copy = df_copy.dropna()
                 for i in range(2, len(df_copy)):
                     df_copy.iloc[i, 1] = ω + α * df_copy.iloc[i - 1, 0] ** 2 + β * df_copy.iloc[i - 1, 1]
                 sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
@@ -112,18 +114,21 @@ class GARCHParameterEstimator(ParameterEstimator):
 
         # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
 
-        # omega [0; np.inf], alpha[0;1], beta[0;1]
-        bounds = Bounds([0., 0., 0.], np.array([np.inf, 1., 1.]) * self.GARCH_PARAM_MULTIPLIERS)
+        # omega [0;1], alpha[0;1], beta[0;1]
+        bounds = Bounds([0., 0., 0.], np.array([1., 1., 1.]) * self.GARCH_PARAM_MULTIPLIERS)
 
         # 0*omega + alpha + beta <= 1
         constr = LinearConstraint([[0, 1 / self.GARCH_PARAM_MULTIPLIERS[1], 1 / self.GARCH_PARAM_MULTIPLIERS[2]]],
                                   [0], [1])
 
-        constr2 = [{'type': 'ineq', 'fun': lambda x:
-                    1 - x[1] / self.GARCH_PARAM_MULTIPLIERS[1] - x[2] / self.GARCH_PARAM_MULTIPLIERS[2]}]
+        # Can pass a Hessian matrix of zero as the objective function is linear with respect to ω, α, and β.
+        # However, the optimization process then takes 3 times as long, but removes the warning.
+        # Better to suppress it altogether.
+        import warnings
+        warnings.filterwarnings('ignore', message='delta_grad == 0.0. Check if the approximated function is linear.')
 
         res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='trust-constr',
-                       bounds=bounds, constraints=constr)  # , options={'maxiter': 150, 'verbose': 2})
+                       bounds=bounds, constraints=constr)#, hess=lambda x: np.zeros((len(x0), len(x0))))
         if res.success:
             ω, α, β = res.x / self.GARCH_PARAM_MULTIPLIERS
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
