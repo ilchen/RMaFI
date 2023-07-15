@@ -11,7 +11,7 @@ from scipy.optimize import LinearConstraint
 
 class ParameterEstimator:
     """
-    Represents an estimator for volatility forecasting parameters
+    A base class for estimators of volatility forecasting parameters
     """
 
     CLOSE = 'Close'
@@ -63,25 +63,28 @@ class ParameterEstimator:
                 self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE, value=uis[1] ** 2)
             self.data = self.data.iloc[1:]
 
+            # Get rid of rows whose percentage changes are infinite
+            self.data = self.data[np.isfinite(self.data)].dropna()
+
 
 class GARCHParameterEstimator(ParameterEstimator):
     """
-    Represents a maximum likelihood estimator for the ω, α, and β parameters of the GARCH(1, 1) model of forecasting volatility
+    A maximum likelihood estimator for the ω, α, and β parameters of the GARCH(1, 1) model of forecasting volatility
     """
     # Ensuring that ω, α, and β values we will search for have roughly equal values in terms of magnitude
-    GARCH_PARAM_MULTIPLIERS = np.array([1e5, 1, .1], dtype=np.float64)
+    GARCH_PARAM_MULTIPLIERS = np.array([1e5, 10, 1], dtype=np.float64)
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
         super().__init__(asset_prices_series, start, end, asset)
 
         # Initial values for ω, α, and β parameters for GARCH
-        x0 = np.array([1e-5, .1, .8], dtype=np.float64)
+        x0 = np.array([1e-5, .1, .87], dtype=np.float64)
 
         def objective_func(x):
             ''' This function searches for optimal values of the ω, α, and β parameters of the GARCH(1, 1)
             model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
             optimization routines that minimize an objective function, this function returns negates the value of the
-            log likelihood objective function for GARCH.
+            log likelihood objective function for GARCH upon return.
             :param x: a tuple of the ω, α, and β parameters where ω, α, and β
                       should be appropriately scaled to be in approximately the same range. This greatly aids the
                       speed of optimization
@@ -107,7 +110,13 @@ class GARCHParameterEstimator(ParameterEstimator):
                 if self.number_assets > 1:
                     df_copy = df_copy.dropna()
                 for i in range(2, len(df_copy)):
-                    df_copy.iloc[i, 1] = ω + α * df_copy.iloc[i - 1, 0] ** 2 + β * df_copy.iloc[i - 1, 1]
+                    # Skipping values that would lead to a propagation of infinity
+                    if np.isinf(df_copy.iloc[i-1, 0]):
+                        df_copy.iloc[i, 1] = df_copy.iloc[i-1, 1]
+                    else:
+                        df_copy.iloc[i, 1] = ω + α * df_copy.iloc[i-1, 0] ** 2 + β * df_copy.iloc[i-1, 1]
+                # No need to take the first variance value into account as it doesn't depend on ω, α, β,
+                # hence starting from the second row
                 sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
 
             return sum
@@ -141,7 +150,7 @@ class GARCHParameterEstimator(ParameterEstimator):
 
 class EWMAParameterEstimator(ParameterEstimator):
     """
-    Represents an maximum likelihood estimator for the λ parameter of the EWMA method of forecasting volatility
+    A maximum likelihood estimator for the λ parameter of the EWMA method of forecasting volatility
     """
 
     def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
@@ -154,7 +163,7 @@ class EWMAParameterEstimator(ParameterEstimator):
             """ This function searches for optimal values of the λ parameter of the EWMA
             model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
             optimization routines that minimize an objective function, this function returns negates the value of the
-            log likelihood objective function for EWMA.
+            log likelihood objective function for EWMA upon return.
             :param λ: the λ parameter in EWMA method of estimating volatility
             """
 
@@ -173,7 +182,11 @@ class EWMAParameterEstimator(ParameterEstimator):
             for j in range(self.number_assets):
                 df_copy = self.data.iloc[:, j*3+1:j*3+3].dropna()
                 for i in range(2, len(df_copy)):
-                    df_copy.iloc[i, 1] = (1 - λ) * df_copy.iloc[i - 1, 0] ** 2 + λ * df_copy.iloc[i - 1, 1]
+                    # Skipping values that would lead to a propagation of infinity
+                    if np.isinf(df_copy.iloc[i - 1, 0]):
+                        df_copy.iloc[i, 1] = df_copy.iloc[i-1, 1]
+                    else:
+                        df_copy.iloc[i, 1] = (1 - λ) * df_copy.iloc[i-1, 0] ** 2 + λ * df_copy.iloc[i-1, 1]
                 sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
 
             # sum = 0.
@@ -215,7 +228,11 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
             sum = 0.
             for i in range(2, len(self.data) - days_ahead):
                 for j in range(self.number_assets):
-                    self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
+                    # Skipping values that would lead to a propagation of infinity
+                    if np.isinf(self.data.iloc[i-1, j*3+1]):
+                        self.data.iloc[i, j*3+2] = self.data.iloc[i-1, j*3+2]
+                    else:
+                        self.data.iloc[i, j*3+2] = (1 - λ) * self.data.iloc[i-1, j*3+1] ** 2 \
                                                    + λ * self.data.iloc[i-1, j*3+2]
                     # Ignoring the first 'days_ahead' observations of Σ(νi - βi)^2
                     # so that the results are not unduly influenced by the choice of starting values
@@ -239,6 +256,29 @@ if __name__ == "__main__":
     import os
 
     try:
+        start = datetime.date(2004, 1, 1)
+        end = datetime.datetime.today()
+        import yfinance as yfin
+        import volatility_trackers
+        from correlations import covariance_trackers
+        yfin.pdr_override()
+        asset_prices_gold = web.get_data_yahoo('GC=F', start, end).loc[:, 'Adj Close'].tz_convert(None).resample('MS').mean()
+        riskless_yield = web.get_data_fred('FII10', start, end).iloc[:, 0]
+        asset_prices = pd.concat([asset_prices_gold, riskless_yield], axis=1).dropna()
+
+        # Searching for a λ that maximizes the likelihood of witnessing the percentage changes of both SP500, BTC and Gold
+        combined_ewma = EWMAParameterEstimator(asset_prices)
+
+        print('\u03BB that maximizes the likelihood of percentage changes in Gold and Real Riskless Yield: %.7f'
+              % combined_ewma.lamda)
+
+        # Reusing it to track the volatilities of these two assets and their covariane
+        gold_vol_tracker = volatility_trackers.EWMAVolatilityTracker(combined_ewma.lamda, asset_prices_gold)
+        riskless_yield_tracker = volatility_trackers.EWMAVolatilityTracker(combined_ewma.lamda, riskless_yield)
+
+        # Covariance between Gold and Riskless Yield
+        covariance_tracker_gold_rislless_yield = covariance_trackers.EWMACovarianceTracker(combined_ewma.lamda, asset_prices)
+
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
         start = datetime.datetime(2019, 12, 15)

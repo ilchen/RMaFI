@@ -1,5 +1,6 @@
 # coding: utf-8
 import pandas as pd
+import numpy as np
 import pandas_datareader.data as web
 from pandas.tseries.offsets import BDay
 
@@ -98,8 +99,11 @@ class EWMACovarianceTracker(CovarianceTracker):
         # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
         #                                     + λ * self.data[self.VARIANCE].iloc[:-1]
         for i in range(2, len(self.data)):
-            self.data.iloc[i, 4] = (1 - lamda) * self.data.iloc[i-1, 2] * self.data.iloc[i-1, 3] \
-                                               + lamda * self.data.iloc[i-1, 4]
+            if np.isinf(self.data.iloc[i-1, 2]) or np.isinf(self.data.iloc[i-1, 3]):
+                self.data.iloc[i, 4] = self.data.iloc[i-1, 4]
+            else:
+                self.data.iloc[i, 4] = (1 - lamda) * self.data.iloc[i-1, 2] * self.data.iloc[i-1, 3] \
+                                                   + lamda * self.data.iloc[i-1, 4]
 
     def get_next_business_day_covariance(self):
         s = super().get_next_business_day_covariance()
