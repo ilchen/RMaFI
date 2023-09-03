@@ -264,6 +264,9 @@ if __name__ == "__main__":
         yfin.pdr_override()
         asset_prices_gold = web.get_data_yahoo('GC=F', start, end).loc[:, 'Adj Close'].tz_convert(None).resample('MS').mean()
         riskless_yield = web.get_data_fred('FII10', start, end).iloc[:, 0]
+
+        # Uncommenting below line allows to test an ability to handle 0 percentage changes
+        # riskless_yield.at[riskless_yield.index[31]] = riskless_yield.at[riskless_yield.index[30]]
         asset_prices = pd.concat([asset_prices_gold, riskless_yield], axis=1).dropna()
 
         # Searching for a λ that maximizes the likelihood of witnessing the percentage changes of both SP500, BTC and Gold
