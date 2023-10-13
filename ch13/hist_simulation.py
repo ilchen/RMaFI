@@ -189,6 +189,70 @@ class HistSimulation:
         ax.set_ylabel('Portfolio losses in $M')
         ax.set_xlabel('Sorted scenarios')
 
+    def exercise_22_8(self, stress_scenarios):
+        """
+        :param stress_scenarios: list of tuples, with the first component of each tuple capturing the loss and the
+                                 second its subjective probability
+        """
+        VaR_conf = .99
+        conf = 1 - VaR_conf
+        _scenarios = self.scenarios.copy(deep=False)
+        _stress_scenarios = DataFrame(stress_scenarios, columns=['Loss', 'Weight'])
+        _scenarios['Loss'] = self.today_value - (self.scenarios * self.weights / self.today).sum(axis=1)
+        _scenarios['Weight'] = (1. - _stress_scenarios.Weight.sum()) / len(self.scenarios)
+        _scenarios = pd.concat([_scenarios, _stress_scenarios])
+        _scenarios = _scenarios.sort_values(by='Loss', ascending=False)
+        _scenarios['Cum_Sum'] = _scenarios.Weight.cumsum()
+
+        # Calculating VaR
+        var = _scenarios[_scenarios.Cum_Sum > conf].Loss.iloc[0]
+
+        # Only interested in the range of losses whose probability is less than 1%
+        es = _scenarios[_scenarios.Cum_Sum <= conf].Loss.mean()
+        print('Exercise 22.8. One day VaR with a confidence level of {:.1%}: {:s}'.
+              format(VaR_conf, locale.currency(var * self.scale_factor, grouping=True)))
+        print('Exercise 22.8. One day ES with a confidence level of {:.1%}: {:s}'.
+              format(VaR_conf, locale.currency(es * self.scale_factor, grouping=True)))
+
+    def exercise_22_11(self, lbd, stress_scenarios):
+        """
+        :param stress_scenarios: list of tuples, with the first component of each tuple capturing the loss and the
+                                 second its subjective probability
+        """
+        VaR_conf = .99
+        conf = 1 - VaR_conf
+
+        _stress_scenarios = DataFrame(stress_scenarios, columns=['Loss', 'Weight'])
+
+
+        loss = self.today_value - (self.scenarios * self.weights / self.today).sum(axis=1)
+        loss_variance = Series(loss.var(), loss.index)
+
+        # Unfortunately not vectorizable as the next value depends on the previous
+        # loss_variance.iloc[1:] = lbd * loss_variance.iloc[:-1] + (1 - lbd) * loss.iloc[:-1]**2
+        for i in range(1, len(loss_variance)):
+            loss_variance.iloc[i] = lbd * loss_variance[i - 1] + (1 - lbd) * loss[i - 1] ** 2
+
+        loss_std = loss_variance.apply(np.sqrt)
+        sd_ratio = loss_std[-1] / loss_std
+
+        # Adjusting the loss for the volatility of the portfolio
+        adjusted_loss = loss * sd_ratio
+        _scenarios = adjusted_loss.to_frame('Loss')
+        _scenarios['Weight'] = (1. - _stress_scenarios.Weight.sum()) / len(self.scenarios)
+        _scenarios = pd.concat([_scenarios, _stress_scenarios])
+        _scenarios = _scenarios.sort_values(by='Loss', ascending=False)
+        _scenarios['Cum_Sum'] = _scenarios.Weight.cumsum()
+
+        # Calculating VaR
+        var = _scenarios[_scenarios.Cum_Sum > conf].Loss.iloc[0]
+
+        # Only interested in the range of losses whose probability is less than 1%
+        es = _scenarios[_scenarios.Cum_Sum <= conf].Loss.mean()
+        print('Exercise 22.11. One day VaR with a confidence level of {:.1%} and \u03BB={:.2f}: {:s}'.
+              format(VaR_conf, lbd, locale.currency(var * self.scale_factor, grouping=True)))
+        print('Exercise 22.11. One day ES with a confidence level of {:.1%} and \u03BB={:.2f}: {:s}'.
+              format(VaR_conf, lbd, locale.currency(es * self.scale_factor, grouping=True)))
 
 if __name__ == "__main__":
     import sys
@@ -207,6 +271,9 @@ if __name__ == "__main__":
         ch13.exercise_13_6(lbd=.99)
         ch13.exercise_13_7_old(lbd=.96)
         ch13.exercise_13_7(lbd=.96)
+        ch13.exercise_22_8([(240, .005), (280, .005), (340, .002), (500, .002),
+                            (700, 5e-4), (850, 5e-4), (1050, 5e-4)])
+        ch13.exercise_22_11(.94, [(235, .005), (300, .002), (450, .002), (750, 5e-4), (850, 5e-4)])
         from evt import Evt
         evt = Evt(hist_simulation_spreadsheet, 1e4, num_iter=30000)
         evt.exercise_13_8_9(VaR_conf=.97)
