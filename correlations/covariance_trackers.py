@@ -15,7 +15,7 @@ class CovarianceTracker:
     DAILY_RETURN = 'ui'
     COVARIANCE = 'Covariance'
 
-    def __init__(self, asset_prices=None, start=None, end=None, assets=['^GSPC', 'AAPL']):
+    def __init__(self, asset_prices=None, start=None, end=None, assets=None):
         """
         Calculates daily covariances from either a panda series object indexed by dates
         (i.e. asset_prices_series != None) or from a date range and a desired asset class (i.e. the 'start' abd 'end'
@@ -29,6 +29,8 @@ class CovarianceTracker:
         :param assets: a list containing two ticker symbols of the assets whose asset price changes are to be analyzed
                        to establish a covariance between them. It expects a Yahoo Finance convention for ticker symbols
         """
+        if assets is None:
+            assets = ['^GSPC', 'AAPL']
         if asset_prices is None:
             if start is None or end is None or assets is None or len(assets) != 2:
                 raise ValueError("Neither asset_prices nor (start, end, assets) arguments are provided")
