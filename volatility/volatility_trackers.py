@@ -1,7 +1,7 @@
 # coding: utf-8
 import numpy as np
 import pandas as pd
-import pandas_datareader.data as web
+import yfinance as yfin
 from pandas.tseries.offsets import BDay
 from math import sqrt, log, exp
 
@@ -37,10 +37,11 @@ class VolatilityTracker:
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
-            data = web.get_data_yahoo(asset, start, end)
+            data = yfin.download(asset, start=start, end=end, ignore_tz=True)
             asset_prices_series = data['Adj Close']
         # Dropping the first row as it doesn't contain a daily return value
-        self.data = pd.DataFrame({self.CLOSE: asset_prices_series, self.DAILY_RETURN: asset_prices_series.pct_change()},
+        self.data = pd.DataFrame({self.CLOSE: asset_prices_series,
+                                  self.DAILY_RETURN: asset_prices_series.pct_change(fill_method=None)},
                                  index=asset_prices_series.index).iloc[1:]
         # Essentially only self.data[self.VARIANCE].iloc[1] needs to be set to self.data.ui.iloc[0]**2
         self.data[self.VARIANCE] = self.data.ui.iloc[0] ** 2
@@ -137,18 +138,20 @@ class EWMAVolatilityTracker(VolatilityTracker):
         # Unfortunately not vectorizable as the next value depends on the previous
         # self.data[self.VARIANCE].iloc[1:] = (1 - λ) * self.data[self.DAILY_RETURN].iloc[:-1]**2\
         #                                     + λ * self.data[self.VARIANCE].iloc[:-1]
+        col_idx_var = self.data.columns.get_loc(self.VARIANCE)
+        col_idx_ret = self.data.columns.get_loc(self.DAILY_RETURN)
         for i in range(2, len(self.data[self.DAILY_RETURN])):
-            if np.isinf(self.data[self.DAILY_RETURN].iloc[i-1]):
-                self.data[self.VARIANCE].iloc[i] = self.data[self.VARIANCE].iloc[i-1]
+            if np.isinf(self.data.iloc[i-1, col_idx_ret]):
+                self.data.iloc[i, col_idx_var] = self.data.iloc[i-1, col_idx_var]
             else:
-                self.data[self.VARIANCE].iloc[i] = (1-lamda) * self.data[self.DAILY_RETURN].iloc[i-1] ** 2 \
-                                                   + lamda * self.data[self.VARIANCE].iloc[i-1]
+                self.data.iloc[i, col_idx_var] = (1-lamda) * self.data.iloc[i-1, col_idx_ret] ** 2 \
+                                                 + lamda * self.data.iloc[i-1, col_idx_var]
 
     def get_next_business_day_volatility(self):
         s = super().get_next_business_day_volatility()
         last_idx = len(self.data) - 1
-        s[0] = np.sqrt((1 - self.lamda) * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
-                       + self.lamda * self.data[self.VARIANCE].iloc[last_idx])
+        s.iloc[0] = np.sqrt((1 - self.lamda) * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
+                            + self.lamda * self.data[self.VARIANCE].iloc[last_idx])
         return s
 
     def get_volatility_forecast(self, n):
@@ -156,7 +159,7 @@ class EWMAVolatilityTracker(VolatilityTracker):
         For EMWA the forecast for n business days in the future is the same as for the next business day
         """
         s = super().get_volatility_forecast(n)
-        s[0] = self.get_next_business_day_volatility().values[0]
+        s.iloc[0] = self.get_next_business_day_volatility().values[0]
         return s
 
     def get_term_volatility_forecast(self, t):
@@ -180,12 +183,14 @@ class GARCHVolatilityTracker(VolatilityTracker):
         # Unfortunately not vectorizable as the next value depends on the previous
         # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
         #                                       + β * self.data[self.VARIANCE].iloc[:-1]
+        col_idx_var = self.data.columns.get_loc(self.VARIANCE)
+        col_idx_ret = self.data.columns.get_loc(self.DAILY_RETURN)
         for i in range(2, len(self.data[self.DAILY_RETURN])):
-            if np.isinf(self.data[self.DAILY_RETURN].iloc[i - 1]):
-                self.data[self.VARIANCE].iloc[i] = self.data[self.VARIANCE].iloc[i - 1]
+            if np.isinf(self.data.iloc[i - 1, col_idx_ret]):
+                self.data.iloc[i, col_idx_var] = self.data.iloc[i - 1, col_idx_var]
             else:
-                self.data[self.VARIANCE].iloc[i] = omega + alpha * self.data[self.DAILY_RETURN].iloc[i - 1] ** 2 \
-                                                   + beta * self.data[self.VARIANCE].iloc[i - 1]
+                self.data.iloc[i, col_idx_var] = omega + alpha * self.data.iloc[i - 1, col_idx_ret] ** 2 \
+                                                 + beta * self.data.iloc[i - 1, col_idx_var]
 
     def get_vl(self):
         """
@@ -208,15 +213,15 @@ class GARCHVolatilityTracker(VolatilityTracker):
     def get_next_business_day_volatility(self):
         s = super().get_next_business_day_volatility()
         last_idx = len(self.data) - 1
-        s[0] = np.sqrt(self.omega + self.alpha * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
-                       + self.beta * self.data[self.VARIANCE].iloc[last_idx])
+        s.iloc[0] = np.sqrt(self.omega + self.alpha * self.data[self.DAILY_RETURN].iloc[last_idx] ** 2
+                            + self.beta * self.data[self.VARIANCE].iloc[last_idx])
         return s
 
     def get_volatility_forecast(self, n):
         s = super().get_volatility_forecast(n)
         vl = self.get_vl()
         next_bd_variance = self.get_next_business_day_volatility().values[0]**2
-        s[0] = np.sqrt(vl + (self.alpha + self.beta)**n * (next_bd_variance - vl))
+        s.iloc[0] = np.sqrt(vl + (self.alpha + self.beta)**n * (next_bd_variance - vl))
         return s
 
     def get_term_volatility_forecast(self, t):
@@ -225,4 +230,4 @@ class GARCHVolatilityTracker(VolatilityTracker):
         t_in_days = t * VolatilityTracker.TRADING_DAYS_IN_YEAR
         next_bd_variance = self.get_next_business_day_volatility().values[0] ** 2
         return sqrt(vl + (1 - exp(-a * t_in_days)) / (a * t_in_days) * (next_bd_variance - vl))\
-            if t > 9.1e-5 else self.get_next_business_day_volatility()[0] # 9.1e-5 is about 8 hours
+            if t > 9.1e-5 else self.get_next_business_day_volatility()[0]  # 9.1e-5 is about 8 hours

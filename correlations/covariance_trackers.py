@@ -1,7 +1,7 @@
 # coding: utf-8
 import pandas as pd
 import numpy as np
-import pandas_datareader.data as web
+import yfinance as yfin
 from pandas.tseries.offsets import BDay
 
 
@@ -34,7 +34,7 @@ class CovarianceTracker:
         if asset_prices is None:
             if start is None or end is None or assets is None or len(assets) != 2:
                 raise ValueError("Neither asset_prices nor (start, end, assets) arguments are provided")
-            data = web.get_data_yahoo(assets, start, end)
+            data = yfin.download(assets, start=start, end=end, ignore_tz=True)
             self.data = data['Adj Close']
         elif len(asset_prices.columns) != 2:
             raise ValueError("Wrong number of columns in submitted DataFrame")
@@ -145,14 +145,14 @@ class GARCHCovarianceTracker(CovarianceTracker):
     def get_next_business_day_covariance(self):
         s = super().get_next_business_day_covariance()
         last_idx = len(self.data) - 1
-        s[0] = self.omega + self.alpha * self.data.iloc[last_idx, 2] * self.data.iloc[last_idx, 3] \
+        s.iloc[0] = self.omega + self.alpha * self.data.iloc[last_idx, 2] * self.data.iloc[last_idx, 3] \
             + self.beta * self.data.iloc[last_idx, 4]
         return s
 
     def get_covariance_forecast(self, n):
         s = super().get_covariance_forecast(n)
         next_bd_cov = self.get_next_business_day_covariance().values[0]
-        s[0] = self.vl + (self.alpha + self.beta)**n * (next_bd_cov - self.vl)
+        s.iloc[0] = self.vl + (self.alpha + self.beta)**n * (next_bd_cov - self.vl)
         return s
 
     def get_long_term_covariance(self):

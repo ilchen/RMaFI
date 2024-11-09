@@ -1,7 +1,7 @@
 # coding: utf-8
 import numpy as np
 import pandas as pd
-import pandas_datareader.data as web
+import yfinance as yfin
 import datetime
 from scipy.optimize import minimize
 from scipy.optimize import minimize_scalar
@@ -42,8 +42,8 @@ class ParameterEstimator:
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
-            data = web.get_data_yahoo(asset, start, end)
-            asset_prices_series = data['Adj Close']
+            data = yfin.download(asset, start=start, ignore_tz=True)
+            asset_prices_series = data[('Adj Close', asset)]
 
         # Dropping the first row as it doesn't contain a daily return value
         if isinstance(asset_prices_series, pd.Series):
@@ -60,7 +60,7 @@ class ParameterEstimator:
             for i in range(self.number_assets):
                 uis = self.data.iloc[:,i*3].dropna().pct_change()
                 self.data.insert(loc=i*3+1, column=self.data.columns[i*3]+self.DAILY_RETURN, value=uis)
-                self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE, value=uis[1] ** 2)
+                self.data.insert(loc=i*3+2, column=self.data.columns[i*3]+self.VARIANCE, value=uis.iloc[1] ** 2)
             self.data = self.data.iloc[1:]
 
             # Get rid of rows whose percentage changes are infinite
@@ -81,14 +81,14 @@ class GARCHParameterEstimator(ParameterEstimator):
         x0 = np.array([1e-5, .1, .87], dtype=np.float64)
 
         def objective_func(x):
-            ''' This function searches for optimal values of the ω, α, and β parameters of the GARCH(1, 1)
+            """ This function searches for optimal values of the ω, α, and β parameters of the GARCH(1, 1)
             model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
-            optimization routines that minimize an objective function, this function returns negates the value of the
+            optimization routines that minimize an objective function, this function negates the value of the
             log likelihood objective function for GARCH upon return.
             :param x: a tuple of the ω, α, and β parameters where ω, α, and β
                       should be appropriately scaled to be in approximately the same range. This greatly aids the
                       speed of optimization
-            '''
+            """
             ω, α, β = x / GARCHParameterEstimator.GARCH_PARAM_MULTIPLIERS
 
             # Unfortunately not vectorizable as the next value depends on the previous
@@ -105,19 +105,19 @@ class GARCHParameterEstimator(ParameterEstimator):
 
             # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
             sum = 0.
+            df_copy = self.data
+            if self.number_assets > 1:
+                df_copy = df_copy.dropna()
             for j in range(self.number_assets):
-                df_copy = self.data.iloc[:, j*3+1:j*3+3]
-                if self.number_assets > 1:
-                    df_copy = df_copy.dropna()
                 for i in range(2, len(df_copy)):
                     # Skipping values that would lead to a propagation of infinity
-                    if np.isinf(df_copy.iloc[i-1, 0]):
-                        df_copy.iloc[i, 1] = df_copy.iloc[i-1, 1]
+                    if np.isinf(df_copy.iloc[i-1, j*3+1]):
+                        df_copy.iloc[i, j*3+2] = df_copy.iloc[i-1, j*3+2]
                     else:
-                        df_copy.iloc[i, 1] = ω + α * df_copy.iloc[i-1, 0] ** 2 + β * df_copy.iloc[i-1, 1]
+                        df_copy.iloc[i, j*3+2] = ω + α * df_copy.iloc[i-1, j*3+1] ** 2 + β * df_copy.iloc[i-1, j*3+2]
                 # No need to take the first variance value into account as it doesn't depend on ω, α, β,
                 # hence starting from the second row
-                sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
+                sum -= (-np.log(df_copy.iloc[2:, j*3+2]) - df_copy.iloc[2:, j*3+1] ** 2 / df_copy.iloc[2:, j*3+2]).sum()
 
             return sum
 
@@ -137,12 +137,102 @@ class GARCHParameterEstimator(ParameterEstimator):
         warnings.filterwarnings('ignore', message='delta_grad == 0.0. Check if the approximated function is linear.')
 
         res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='trust-constr',
-                       bounds=bounds, constraints=constr)#, hess=lambda x: np.zeros((len(x0), len(x0))))
+                       bounds=bounds, constraints=constr)  # hess=lambda x: np.zeros((len(x0), len(x0))))
         if res.success:
             ω, α, β = res.x / self.GARCH_PARAM_MULTIPLIERS
             print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
             self.omega = ω
             self.alpha = α
+            self.beta = β
+        else:
+            raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
+
+
+class GARCHVarianceTargetingParameterEstimator(ParameterEstimator):
+    """
+    A maximum likelihood estimator for the ω, α, and β parameters of the GARCH(1, 1) model of forecasting volatility.
+    In contrast to the GARCHParameterEstimator class, it's faster because it sets ω based on the sample variance
+    of price changes. Then it optimises for only two variables (α, β) instead of 3 (α, β, ω) as GARCHParameterEstimator.
+    This class cannot be used to estimate GARCH parameters of multiple assets
+    """
+    # Ensuring that ω and β values we will search for have roughly equal values in terms of magnitude
+    GARCH_PARAM_MULTIPLIERS = np.array([1e5, 1], dtype=np.float64)
+
+    def __init__(self, asset_prices_series=None, start=None, end=None, asset='EURUSD=X'):
+        super().__init__(asset_prices_series, start, end, asset)
+        if self.number_assets > 1:
+            raise ValueError('Cannot use GARCHVarianceTargetingParameterEstimator for estimating GARCH(1,1) parameters'
+                             ' of more than one asset')
+
+        # Initial values for ω and β parameters for GARCH
+        x0 = np.array([1e-5, .87], dtype=np.float64)
+
+        vl = self.data.iloc[:, 1].var()   # sample variance
+
+        def objective_func(x):
+            """ This function searches for optimal values of the ω and β parameters of the GARCH(1, 1)
+            model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
+            optimization routines that minimize an objective function, this function negates the value of the
+            log likelihood objective function for GARCH upon return.
+            :param x: a tuple of the ω, α, and β parameters where ω, α, and β
+                      should be appropriately scaled to be in approximately the same range. This greatly aids the
+                      speed of optimization
+            """
+            ω, β = x / GARCHVarianceTargetingParameterEstimator.GARCH_PARAM_MULTIPLIERS
+            α = 1 - β - ω / vl
+
+            # Unfortunately not vectorizable as the next value depends on the previous
+            # self.data[self.VARIANCE].iloc[1:] = ω + α * self.data[self.DAILY_RETURN].iloc[:-1]**2\
+            #                                       + β * self.data[self.VARIANCE].iloc[:-1]
+            # for i in range(2, len(self.data)):
+            #     for j in range(self.number_assets):
+            #         self.data.iloc[i, j*3+2] = ω + α * self.data.iloc[i-1, j*3+1] ** 2 \
+            #                                        + β * self.data.iloc[i-1, j*3+2]
+            # sum = 0.
+            # for j in range(self.number_assets):
+            #     sum -= (-np.log(self.data.iloc[1:, j*3+2]) -
+            #             self.data.iloc[1:, j*3+1] ** 2 / self.data.iloc[1:, j*3+2]).sum()
+
+            # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
+            sum = 0.
+            for i in range(2, len(self.data)):
+                # Skipping values that would lead to a propagation of infinity
+                if np.isinf(self.data.iloc[i-1, 1]):
+                    self.data.iloc[i, 2] = self.data.iloc[i-1, 2]
+                else:
+                    self.data.iloc[i, 2] = ω + α * self.data.iloc[i-1, 1] ** 2 + β * self.data.iloc[i-1, 2]
+            # No need to take the first variance value into account as it doesn't depend on ω, α, β,
+            # hence starting from the second row
+            sum -= (-np.log(self.data.iloc[2:, 2]) - self.data.iloc[2:, 1] ** 2 / self.data.iloc[2:, 2]).sum()
+
+            return sum
+
+        # print('Starting with objective function value of:', -objective_func(x0 * self.GARCH_PARAM_MULTIPLIERS))
+
+        # ω[0;1], β[0;1]
+        bounds = Bounds([0., 0.], np.array([1., 1.]) * self.GARCH_PARAM_MULTIPLIERS)
+
+        # 0 <= ω/vl + β <=1
+        constr = LinearConstraint([[1 / (vl * self.GARCH_PARAM_MULTIPLIERS[0]), 1 / self.GARCH_PARAM_MULTIPLIERS[1]]],
+                                  [0], [1])
+
+        # Can pass a Hessian matrix of zero as the objective function is linear with respect to ω, α, and β.
+        # However, the optimization process then takes 3 times as long, but removes the warning.
+        # Better to suppress it altogether.
+        import warnings
+        warnings.filterwarnings('ignore', message='delta_grad == 0.0. Check if the approximated function is linear.')
+
+        # L-BFGS-B is extremely fast, yet may produce negative values for α while optimizing, whereby triggering
+        # np.log errors. Resultant values are accurate though
+        # res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='L-BFGS-B', bounds=bounds)
+
+        res = minimize(objective_func, x0 * self.GARCH_PARAM_MULTIPLIERS, method='trust-constr',
+                       bounds=bounds, constraints=constr)
+        if res.success:
+            ω, β = res.x / self.GARCH_PARAM_MULTIPLIERS
+            print('Objective function: %.5f after %d iterations' % (-res.fun, res.nit))
+            self.omega = ω
+            self.alpha = 1 - β - ω / vl
             self.beta = β
         else:
             raise ValueError("Optimizing the objective function with the passed asset price changes didn't succeed")
@@ -162,7 +252,7 @@ class EWMAParameterEstimator(ParameterEstimator):
         def objective_func(λ):
             """ This function searches for optimal values of the λ parameter of the EWMA
             model given the sample of asset price changes stored in the 'self.data' DataFrame. Since SciPy only has
-            optimization routines that minimize an objective function, this function returns negates the value of the
+            optimization routines that minimize an objective function, this function negates the value of the
             log likelihood objective function for EWMA upon return.
             :param λ: the λ parameter in EWMA method of estimating volatility
             """
@@ -179,15 +269,17 @@ class EWMAParameterEstimator(ParameterEstimator):
 
             # Catering to a case where some series in a DataFrame may have NaNs due to different trading days
             sum = 0.
+            df_copy = self.data
+            if self.number_assets > 1:
+                df_copy = df_copy.dropna()
             for j in range(self.number_assets):
-                df_copy = self.data.iloc[:, j*3+1:j*3+3].dropna()
                 for i in range(2, len(df_copy)):
                     # Skipping values that would lead to a propagation of infinity
-                    if np.isinf(df_copy.iloc[i - 1, 0]):
+                    if np.isinf(df_copy.iloc[i - 1, j*3+1]):
                         df_copy.iloc[i, 1] = df_copy.iloc[i-1, 1]
                     else:
-                        df_copy.iloc[i, 1] = (1 - λ) * df_copy.iloc[i-1, 0] ** 2 + λ * df_copy.iloc[i-1, 1]
-                sum -= (-np.log(df_copy.iloc[2:, 1]) - df_copy.iloc[2:, 0] ** 2 / df_copy.iloc[2:, 1]).sum()
+                        df_copy.iloc[i, j*3+2] = (1 - λ) * df_copy.iloc[i-1, j*3+1] ** 2 + λ * df_copy.iloc[i-1, j*3+2]
+                sum -= (-np.log(df_copy.iloc[2:, j*3+2]) - df_copy.iloc[2:, j*3+1] ** 2 / df_copy.iloc[2:, j*3+2]).sum()
 
             # sum = 0.
             # for j in range(self.number_assets):
@@ -207,7 +299,7 @@ class EWMAParameterEstimator(ParameterEstimator):
 
 class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
     """
-    Represents a minimum difference estimator for the λ parameter of the EWMA method of forecasting volatility.
+    A minimum difference estimator for the λ parameter of the EWMA method of forecasting volatility.
     Estimates the value of λ in the EWMA model such that it minimizes the value of Σ(νi - βi)^2, where νi is
     the variance forecast made at the end of day i − 1 and βi is the variance calculated from data between
     day i and day i + days_ahead.
@@ -228,7 +320,6 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
             sum = 0.
             for i in range(2, len(self.data) - days_ahead):
                 for j in range(self.number_assets):
-                    # Skipping values that would lead to a propagation of infinity
                     if np.isinf(self.data.iloc[i-1, j*3+1]):
                         self.data.iloc[i, j*3+2] = self.data.iloc[i-1, j*3+2]
                     else:
@@ -256,38 +347,12 @@ if __name__ == "__main__":
     import os
 
     try:
-        start = datetime.date(2004, 1, 1)
-        end = datetime.datetime.today()
-        import yfinance as yfin
-        import volatility_trackers
-        from correlations import covariance_trackers
-        yfin.pdr_override()
-        asset_prices_gold = web.get_data_yahoo('GC=F', start, end).loc[:, 'Adj Close'].tz_convert(None).resample('MS').mean()
-        riskless_yield = web.get_data_fred('FII10', start, end).iloc[:, 0]
-
-        # Uncommenting below line allows to test an ability to handle 0 percentage changes
-        # riskless_yield.at[riskless_yield.index[31]] = riskless_yield.at[riskless_yield.index[30]]
-        asset_prices = pd.concat([asset_prices_gold, riskless_yield], axis=1).dropna()
-
-        # Searching for a λ that maximizes the likelihood of witnessing the percentage changes of both SP500, BTC and Gold
-        combined_ewma = EWMAParameterEstimator(asset_prices)
-
-        print('\u03BB that maximizes the likelihood of percentage changes in Gold and Real Riskless Yield: %.7f'
-              % combined_ewma.lamda)
-
-        # Reusing it to track the volatilities of these two assets and their covariane
-        gold_vol_tracker = volatility_trackers.EWMAVolatilityTracker(combined_ewma.lamda, asset_prices_gold)
-        riskless_yield_tracker = volatility_trackers.EWMAVolatilityTracker(combined_ewma.lamda, riskless_yield)
-
-        # Covariance between Gold and Riskless Yield
-        covariance_tracker_gold_rislless_yield = covariance_trackers.EWMACovarianceTracker(combined_ewma.lamda, asset_prices)
-
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
         start = datetime.datetime(2019, 12, 15)
         end = datetime.datetime.today()
-        data = web.get_data_yahoo('GBPUSD=X', start, end)
-        asset_prices_series = data['Adj Close']
+        data = yfin.download('GBPUSD=X', start=start, end=end, ignore_tz=True)
+        asset_prices_series = data[('Adj Close', 'GBPUSD=X')]
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
                 'EURUSD=X', ch10_ewma_md.lamda))
@@ -300,13 +365,27 @@ if __name__ == "__main__":
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='JPYUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
                 'JPYUSD=X', ch10_ewma_md.lamda))
-        # data = web.get_data_yahoo(['^GSPC', 'BTC-USD'], start, end)
-        # asset_prices = data['Adj Close']
-        ch10_ewma = GARCHParameterEstimator(asset_prices_series)
+
+        ch10_ewma = EWMAParameterEstimator(asset_prices_series)
         print('Optimal value for λ: %.5f' % ch10_ewma.lamda)
         ch10_garch = GARCHParameterEstimator(asset_prices_series)
         print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f'
               % (ch10_garch.omega, ch10_garch.alpha, ch10_garch.beta))
+
+        data = yfin.Tickers(['AAPL', '^GSPC']).download(start=start, auto_adjust=False, actions=False, ignore_tz=True)
+
+        # Get rid of possible offset when aggregating data from different trading venues
+        asset_prices = data['Adj Close'].resample('D').first()
+
+        asset_prices_apple = asset_prices['AAPL']
+        asset_prices_sp500 = asset_prices['^GSPC']
+
+        # Searching for ω, α, and β that maximize the likelihood of witnessing the given percentage
+        # changes in AAPL and SP500.
+        combined_garch = GARCHParameterEstimator(asset_prices)
+        print('Optimal values for GARCH parameters:\n\tω=%.12f, α=%.5f, β=%.5f'
+              % (combined_garch.omega, combined_garch.alpha, combined_garch.beta))
+
 
     except (IndexError, ValueError) as ex:
         print(
