@@ -42,7 +42,7 @@ class ParameterEstimator:
         if asset_prices_series is None:
             if start is None or end is None or asset is None:
                 raise ValueError("Neither asset_price_series nor (start, end, asset) arguments are provided")
-            data = yfin.download(asset, start=start, ignore_tz=True)
+            data = yfin.download(asset, start=start, ignore_tz=True, auto_adjust=False)
             asset_prices_series = data[('Adj Close', asset)]
 
         # Dropping the first row as it doesn't contain a daily return value
@@ -345,14 +345,33 @@ class EWMAMinimumDifferenceParameterEstimator(ParameterEstimator):
 if __name__ == "__main__":
     import sys
     import os
+    from datetime import date
+    from dateutil.relativedelta import relativedelta
+    from pandas.tseries.offsets import BDay
 
     try:
         start = datetime.datetime(2005, 7, 27)
         end = datetime.datetime(2010, 7, 27)
         start = datetime.datetime(2019, 12, 15)
         end = datetime.datetime.today()
+
+        TICKER = 'AAPL'
+
+        # I'll use price changes over the past two years to estimate GARCH(1, 1) ω, α, and β parameters
+        start = BDay(1).rollback(date.today() - relativedelta(years=+2))
+        ticker = yfin.Ticker(TICKER)
+
+        data = ticker.history(start=start, actions=False, auto_adjust=False).tz_localize(None)
+
+        asset_prices = data['Adj Close']
+
+        vol_estimator = GARCHParameterEstimator(asset_prices)
+        print('Optimal values for GARCH(1, 1) parameters:\n\tω=%.12f, α=%.5f, β=%.5f'
+              % (vol_estimator.omega, vol_estimator.alpha, vol_estimator.beta))
+
+
         data = yfin.download('GBPUSD=X', start=start, end=end, ignore_tz=True)
-        asset_prices_series = data[('Adj Close', 'GBPUSD=X')]
+        asset_prices_series = data[('Close', 'GBPUSD=X')]
         ch10_ewma_md = EWMAMinimumDifferenceParameterEstimator(start=start, end=end, asset='EURUSD=X')
         print('Optimal value for λ using the minimum difference method for \'%s\': %.5f' % (
                 'EURUSD=X', ch10_ewma_md.lamda))
